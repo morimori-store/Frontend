@@ -16,17 +16,17 @@ const adminLinks: AdminLink[] = [
   {
     label: "주문 관리",
     children: [
-      { href: "/artist/monitor/approve", label: "주문 내역" },
-      { href: "/artist/monitor/monitor", label: "취소 요청" },
-      { href: "/artist/monitor/monitor", label: "교환 요청" },
+      { href: "/artist/orders/list", label: "주문 내역" },
+      { href: "/artist/orders/cancel", label: "취소 요청" },
+      { href: "/artist/orders/exchange", label: "교환 요청" },
     ],
   },
   {
     label: "정산 내역",
     children: [
       { href: "/artist/monitor/approve", label: "정산 현황" },
-      { href: "/artist/monitor/monitor", label: "환전 요청" },
-      { href: "/artist/monitor/monitor", label: "입금/환전 내역" },
+      { href: "/artist/monitor/withdraw", label: "환전 요청" },
+      { href: "/artist/monitor/history", label: "입금/환전 내역" },
     ],
   },
   { href: "/artist/users", label: "펀딩 관리" },
