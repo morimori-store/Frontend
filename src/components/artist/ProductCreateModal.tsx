@@ -1,10 +1,11 @@
+
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import X from '@/assets/icon/x.svg';
 import Paperclip from '@/assets/icon/paperclip2.svg';
 import NoticeEditor from '@/components/editor/NoticeEditor';
-import { createProduct, deleteProduct, updateProduct, uploadProductImages /* updateProduct, deleteProduct */ } from '@/services/products';
+import { createProduct, updateProduct, uploadProductImages } from '@/services/products';
 import { fetchCategoriesClient } from '@/lib/server/categories.client';
 import type { Category } from '@/types/category';
 import { fetchTagsClient } from '@/lib/server/tags.client';
@@ -21,17 +22,38 @@ import type {
   ProductAddonUI,
 } from '@/types/product';
 
-// "2025-10-10T12:30" → "2025-10-10T12:30:00"
 const toLocalDateTime = (s?: string | null) =>
   s ? (s.includes(':') && s.length === 16 ? `${s}:00` : s) : null;
 
+// 폼 → 판매상태 계산
+function computeSellingStatusFromPayload(p: ProductCreatePayload): 'BEFORE_SELLING' | 'SELLING' | 'SOLD_OUT' | 'END_OF_SALE' {
+  const now = new Date();
+  if (p.plannedSale) {
+    const s = new Date(p.plannedSale.startAt);
+    const e = p.plannedSale.endAt ? new Date(p.plannedSale.endAt) : undefined;
+    if (!isNaN(s.getTime()) && now < s) return 'BEFORE_SELLING';
+    if (e && !isNaN(e.getTime()) && now > e) return 'END_OF_SALE';
+  }
+  if ((p.stock ?? 0) <= 0) return 'SOLD_OUT';
+  return 'SELLING';
+}
+
+const normalizeTagName = (s?: string) => (s ?? '').trim().toLowerCase();
+
+
+
 function toProductCreateDto(
-  payload: ProductCreatePayload, // 사용자가 입력한 데이터
-  opts: { uploadedImages: UploadedImageInfo[]; tagDict: TagDict }
+  payload: ProductCreatePayload,
+  opts: { uploadedImages: UploadedImageInfo[]; tagDict: TagDict; isRestock?: boolean }
 ): ProductCreateDto {
-  const categoryId = Number(payload.category2 || payload.category1); // String → number
-  const deliveryType =
-    payload.shipping.type === 'CONDITIONAL' ? 'CONDITIONAL_FREE' : payload.shipping.type; // CONDITIONAL -> CONDITIONAL_FREE
+  const categoryId = Number(payload.category2 || payload.category1);
+  const deliveryType = payload.shipping.type === 'CONDITIONAL' ? 'CONDITIONAL_FREE' : payload.shipping.type;
+  const sellingStatus = computeSellingStatusFromPayload(payload);
+
+  // 이름 → ID 매핑 (정규화)
+  const tagIds = (payload.tags ?? [])
+  .map((name) => opts.tagDict[normalizeTagName(name)])
+  .filter((id): id is number => Number.isInteger(id));
 
   return {
     categoryId,
@@ -46,26 +68,23 @@ function toProductCreateDto(
     deliveryType,
     deliveryCharge: deliveryType === 'FREE' ? 0 : payload.shipping.fee,
     additionalShippingCharge: payload.shipping.jejuExtraFee,
-    conditionalFreeAmount:
-      deliveryType === 'CONDITIONAL_FREE' ? (payload.shipping.freeThreshold ?? 0) : null,
+    conditionalFreeAmount: deliveryType === 'CONDITIONAL_FREE' ? (payload.shipping.freeThreshold ?? 0) : null,
 
     stock: payload.stock,
     description: payload.description,
 
-    sellingStatus: 'SELLING',
+    sellingStatus,
     displayStatus: 'DISPLAYING',
 
     minQuantity: payload.minQty,
     maxQuantity: payload.maxQty,
 
-    isPlanned: !!payload.plannedSale, // 판매 기간 입력 여부로 판단
-    isRestock: false, // 재입고 상품 false
-    sellingStartDate: payload.plannedSale ? toLocalDateTime(payload.plannedSale.startAt) : null, // 입력값이 있으면 toLocalDateTime
+    isPlanned: !!payload.plannedSale,
+    isRestock: !!opts.isRestock,
+    sellingStartDate: payload.plannedSale ? toLocalDateTime(payload.plannedSale.startAt) : null,
     sellingEndDate: payload.plannedSale ? toLocalDateTime(payload.plannedSale.endAt) : null,
 
-    tags: (payload.tags ?? []) // ["모던", "심플"] -> [1, 4]
-      .map((t) => opts.tagDict[t])
-      .filter((id): id is number => typeof id === 'number'),
+    tags: tagIds,
 
     options: (payload.options ?? []).map((o) => ({
       optionName: o.name,
@@ -102,10 +121,15 @@ type Props = {
 
   // 수정/삭제
   mode?: 'create' | 'edit';
-  productUuid?: string;
+  productUuid?: string; // ← 사용 안 함(무시)
   initialPayload?: ProductCreatePayload;
   onUpdated?: (args: { productUuid: string; payload: ProductCreatePayload }) => void;
   onDeleted?: (args: { productUuid: string }) => void;
+
+  // 행의 productId (스냅샷 저장용)
+  productId?: string;
+  // 현재 폼 스냅샷을 상위에 저장
+  onSaveSnapshot?: (productId: string, payload: ProductCreatePayload) => void;
 
   // 공통
   initialBrand?: string;
@@ -120,62 +144,57 @@ export default function ProductCreateModal({
   onClose,
   onCreated,
   mode = 'create',
-  productUuid,
+  productUuid, // 사용 안함
   initialPayload,
   onUpdated,
   onDeleted,
+  productId,       
+  onSaveSnapshot,   
   initialBrand = '모리모리',
   initialBizInfo,
   onLoadBizFromProfile,
 }: Props) {
-
-  // ----- 기본 정보 -----
+  // 기본 정보
   const [brand, setBrand] = useState(initialBrand);
   const [title, setTitle] = useState('');
   const [modelName, setModelName] = useState('');
   const [category1, setCategory1] = useState('');
   const [category2, setCategory2] = useState('');
 
-  // 카테고리 트리 상태
+  // 카테고리/태그
   const [catTree, setCatTree] = useState<Category[]>([]);
   const [catsLoading, setCatsLoading] = useState(false);
   const [catsErr, setCatsErr] = useState<string | null>(null);
-  
-  // 태그 목록
   const [tagsRemote, setTagsRemote] = useState<RemoteTag[]>([]);
   const [tagsError, setTagsError] = useState<string | null>(null);
   const [tagsLoading, setTagsLoading] = useState(false);
 
-  // 사이즈/재질/원산지
+  // 상세 필드
   const [size, setSize] = useState('');
   const [material, setMaterial] = useState('');
   const [origin, setOrigin] = useState('');
-  
-  // 가격/재고/구매제한
   const [price, setPrice] = useState<number>(0);
   const [discountRate, setDiscountRate] = useState<number>(0);
   const [stock, setStock] = useState<number>(0);
   const [minQty, setMinQty] = useState<number>(1);
   const [maxQty, setMaxQty] = useState<number>(0);
-  
-  // 배송 정보
+
   const [bundleShipping, setBundleShipping] = useState<boolean>(true);
   const [shippingType, setShippingType] = useState<ShippingTypeUI>('FREE');
   const [shippingFee, setShippingFee] = useState<number>(0);
-  const [freeThreshold, setFreeThreshold] = useState<number>(0); // 조건부 무료 기준 금액
+  const [freeThreshold, setFreeThreshold] = useState<number>(0);
   const [jejuExtraFee, setJejuExtraFee] = useState<number>(0);
 
-  // 판매 설정
   const [isPlanned, setIsPlanned] = useState<boolean>(false);
   const [saleStart, setSaleStart] = useState<string>('');
   const [saleEnd, setSaleEnd] = useState<string>('');
-  const [tags, setTags] = useState<string[]>([]); // UI에서 선택한 태그명(string)
+  const [tags, setTags] = useState<string[]>([]);
+  const [isRestock, setIsRestock] = useState<boolean>(false);
 
-  // 옵션/추가상품
   const [useOptions, setUseOptions] = useState<boolean>(false);
   const [options, setOptions] = useState<ProductOptionUI[]>([]);
   const [addons, setAddons] = useState<ProductAddonUI[]>([]);
-  // 옵션/추가상품 (추가/삭제/수정)
+
   const addOption = () => setOptions((p) => [...p, { id: crypto.randomUUID(), name: '' }]);
   const removeOption = (idx: number) => setOptions((p) => p.filter((_, i) => i !== idx));
   const updateOption = (idx: number, patch: Partial<ProductOptionUI>) =>
@@ -185,7 +204,6 @@ export default function ProductCreateModal({
   const updateAddon = (idx: number, patch: Partial<ProductAddonUI>) =>
     setAddons((p) => p.map((o, i) => (i === idx ? { ...o, ...patch } : o)));
 
-  // 인증/사업자
   const [lawCertRequired, setLawCertRequired] = useState<boolean>(false);
   const [lawCertDetail, setLawCertDetail] = useState<string>('');
   const [bizInfo, setBizInfo] = useState({
@@ -194,18 +212,14 @@ export default function ProductCreateModal({
     ceoName: initialBizInfo?.ceoName ?? '',
   });
 
-  // 에디터/파일
   const [editorValue, setEditorValue] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [fileTypes, setFileTypes] = useState<UploadType[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [uploadedImages, setUploadedImages] = useState<UploadedImageInfo[]>([]);
-
   const [submitting, setSubmitting] = useState(false);
 
-  
-
-  // 모달 열릴 때 태그 로드
+  // 모달 열릴 때 태그/카테고리 로드
   useEffect(() => {
     if (!open) return;
     (async () => {
@@ -223,7 +237,6 @@ export default function ProductCreateModal({
     })();
   }, [open]);
 
-  // 모달 열릴 때 카테고리 로드
   useEffect(() => {
     if (!open) return;
     (async () => {
@@ -242,16 +255,35 @@ export default function ProductCreateModal({
     })();
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+
+    if (mode === 'create') {
+      setBrand(initialBrand);
+      return;
+    }
+
+    if (mode === 'edit') {
+      if (initialPayload) {
+        hydrateFromPayload(initialPayload);
+      }
+    }
+  }, [open, mode, initialPayload, initialBrand]);
+
   const subOptions = useMemo(() => {
     const root = catTree.find((c) => String(c.id) === category1);
     return root?.subCategories ?? [];
   }, [catTree, category1]);
 
-  const tagDict = useMemo(() => {
-    const dict: TagDict = {};
-    tagsRemote.forEach((t) => (dict[t.tagName] = t.id));
-    return dict;
-  }, [tagsRemote]);
+  // 태그명 키를 정규화해서 저장
+const tagDict = useMemo(() => {
+  const dict: TagDict = {};
+  const normalize = (s?: string) => (s ?? '').trim().toLowerCase();
+  tagsRemote.forEach((t) => {
+    if (t?.tagName) dict[normalize(t.tagName)] = t.id;
+  });
+  return dict;
+}, [tagsRemote])
 
   useEffect(() => {
     const urls = files.map((f) => (f.type?.startsWith('image/') ? URL.createObjectURL(f) : ''));
@@ -264,109 +296,55 @@ export default function ProductCreateModal({
     if (!open) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prev;
-    };
+    return () => { document.body.style.overflow = prev; };
   }, [open]);
 
-//payload -> 내부 state 주입 유틸
-function hydrateFromPayload(payload: ProductCreatePayload) {
-  setBrand(payload.brand ?? initialBrand);
-  setTitle(payload.title ?? '');
-  setModelName(payload.modelName ?? '');
-  setCategory1(payload.category1 ?? '');
-  setCategory2(payload.category2 ?? '');
+  function hydrateFromPayload(payload: ProductCreatePayload) {
+    setBrand(payload.brand ?? initialBrand);
+    setTitle(payload.title ?? '');
+    setModelName(payload.modelName ?? '');
+    setCategory1(payload.category1 ?? '');
+    setCategory2(payload.category2 ?? '');
 
-  setSize(payload.size ?? '');
-  setMaterial(payload.material ?? '');
-  setOrigin(payload.origin ?? '');
+    setSize(payload.size ?? '');
+    setMaterial(payload.material ?? '');
+    setOrigin(payload.origin ?? '');
 
-  setPrice(payload.price ?? 0);
-  setDiscountRate(payload.discountRate ?? 0);
-  setStock(payload.stock ?? 0);
-  setMinQty(payload.minQty ?? 1);
-  setMaxQty(payload.maxQty ?? 0);
+    setPrice(payload.price ?? 0);
+    setDiscountRate(payload.discountRate ?? 0);
+    setStock(payload.stock ?? 0);
+    setMinQty(payload.minQty ?? 1);
+    setMaxQty(payload.maxQty ?? 0);
 
-  // 배송
-  setBundleShipping(!!payload.bundleShipping);
-  setShippingType(payload.shipping?.type ?? 'FREE');
-  setShippingFee(payload.shipping?.type === 'FREE' ? 0 : (payload.shipping?.fee ?? 0));
-  setFreeThreshold(
-    payload.shipping?.type === 'CONDITIONAL' ? (payload.shipping?.freeThreshold ?? 0) : 0
-  );
-  setJejuExtraFee(payload.shipping?.jejuExtraFee ?? 0);
+    setBundleShipping(!!payload.bundleShipping);
+    setShippingType(payload.shipping?.type ?? 'FREE');
+    setShippingFee(payload.shipping?.type === 'FREE' ? 0 : (payload.shipping?.fee ?? 0));
+    setFreeThreshold(payload.shipping?.type === 'CONDITIONAL' ? (payload.shipping?.freeThreshold ?? 0) : 0);
+    setJejuExtraFee(payload.shipping?.jejuExtraFee ?? 0);
 
-  // 판매설정
-  const planned = !!payload.plannedSale;
-  setIsPlanned(planned);
-  setSaleStart(planned ? (payload.plannedSale?.startAt ?? '') : '');
-  setSaleEnd(planned ? (payload.plannedSale?.endAt ?? '') : '');
+    const planned = !!payload.plannedSale;
+    setIsPlanned(planned);
+    setSaleStart(planned ? (payload.plannedSale?.startAt ?? '') : '');
+    setSaleEnd(planned ? (payload.plannedSale?.endAt ?? '') : '');
 
-  // 태그/옵션/추가상품
-  setTags(payload.tags ?? []);
-  const usingOptions = (payload.options?.length ?? 0) > 0 || (payload.addons?.length ?? 0) > 0;
-  setUseOptions(usingOptions);
-  setOptions(payload.options ?? []);
-  setAddons(payload.addons ?? []);
+    setIsRestock(false);
 
-  // 인증/사업자/본문
-  setLawCertRequired(!!payload.lawCert?.required);
-  setLawCertDetail(payload.lawCert?.detail ?? '');
-  setBizInfo({
-    companyName: payload.bizInfo?.companyName ?? '',
-    bizNumber: payload.bizInfo?.bizNumber ?? '',
-    ceoName: payload.bizInfo?.ceoName ?? '',
-  });
-  setEditorValue(payload.description ?? '');
-}
+    setTags(payload.tags ?? []);
+    const usingOptions = (payload.options?.length ?? 0) > 0 || (payload.addons?.length ?? 0) > 0;
+    setUseOptions(usingOptions);
+    setOptions(payload.options ?? []);
+    setAddons(payload.addons ?? []);
 
-  // 생성 모달 열리면 입력값 비우기 
-  useEffect(() => {
-  if (!open) return;
-
-  if (mode === 'edit' && initialPayload) {
-    // 수정 모드 → initialPayload로 주입
-    hydrateFromPayload(initialPayload);
-  } else if (mode === 'create') {
-    // 생성 모드 → 깔끔히 초기화 + 브랜드만 세팅
-    resetAll();
-    setBrand(initialBrand);
+    setLawCertRequired(!!payload.lawCert?.required);
+    setLawCertDetail(payload.lawCert?.detail ?? '');
+    setBizInfo({
+      companyName: payload.bizInfo?.companyName ?? '',
+      bizNumber: payload.bizInfo?.bizNumber ?? '',
+      ceoName: payload.bizInfo?.ceoName ?? '',
+    });
+    setEditorValue(payload.description ?? '');
   }
-}, [open, mode, initialPayload, initialBrand]);
 
-  // 전체 초기화
-  const resetAll = () => {
-    setTitle('');
-    setModelName('');
-    setCategory1('');
-    setCategory2('');
-    setSize('');
-    setMaterial('');
-    setOrigin('');
-    setPrice(0);
-    setDiscountRate(0);
-    setStock(0);
-    setMinQty(1);
-    setMaxQty(0);
-    setBundleShipping(true);
-    setShippingType('FREE');
-    setShippingFee(0);
-    setFreeThreshold(0);
-    setJejuExtraFee(0);
-    setIsPlanned(false);
-    setSaleStart('');
-    setSaleEnd('');
-    setTags([]);
-    setUseOptions(false);
-    setOptions([]);
-    setAddons([]);
-    setLawCertRequired(false);
-    setLawCertDetail('');
-    setEditorValue('');
-    setFiles([]);
-    setFileTypes([]);
-    setUploadedImages([]);
-  };
 
   const handleSelectFiles = (incoming: File[]) => {
     if (incoming.length === 0) return;
@@ -438,11 +416,11 @@ function hydrateFromPayload(payload: ProductCreatePayload) {
     addons: useOptions ? addons : [],
     lawCert: lawCertRequired ? { required: true, detail: lawCertDetail } : { required: false },
     description: editorValue,
-    bizInfo,         // 서버 전송 X
-    attachments: [], // 서버 전송 X
+    bizInfo,
+    attachments: [],
   });
 
-  // 생성 
+  // 생성
   const handleCreate = async () => {
     const payload = buildPayload();
     if (!payload.title.trim()) return alert('상품명을 입력해주세요.');
@@ -450,65 +428,60 @@ function hydrateFromPayload(payload: ProductCreatePayload) {
     if (payload.shipping.type === 'CONDITIONAL' && (!payload.shipping.freeThreshold || payload.shipping.freeThreshold <= 0))
       return alert('조건부 무료배송 기준 금액을 입력해주세요.');
 
-    const dto = toProductCreateDto(payload, { uploadedImages, tagDict });
+    const dto = toProductCreateDto(payload, { uploadedImages, tagDict, isRestock });
+
     const newUuid = await createProduct(dto);
     onCreated?.({ productUuid: newUuid, payload });
     alert(`상품 등록 성공: ${newUuid}`);
     onClose();
   };
 
-// 수정
-const handleUpdate = async () => {
-  if (!productUuid) return alert('상품 식별자가 없습니다.');
+  // 수정
+  const handleUpdate = async () => {
+  // 1) 필수값 검증
   const payload = buildPayload();
-
   if (!payload.title.trim()) return alert('상품명을 입력해주세요.');
   if (payload.price < 0) return alert('판매가는 0 이상이어야 합니다.');
-  if (payload.shipping.type === 'CONDITIONAL' && (!payload.shipping.freeThreshold || payload.shipping.freeThreshold <= 0)) {
+  if (payload.shipping.type === 'CONDITIONAL' && (!payload.shipping.freeThreshold || payload.shipping.freeThreshold <= 0))
     return alert('조건부 무료배송 기준 금액을 입력해주세요.');
+
+  // 2) DTO 변환
+  const dto = toProductCreateDto(payload, { uploadedImages, tagDict, isRestock });
+
+  // 3) uuid 확인
+  if (!productUuid) {
+    alert('이 상품의 productUuid를 찾지 못해 수정할 수 없습니다.');
+    return;
   }
 
   try {
     setSubmitting(true);
-    const dto = toProductCreateDto(payload, { uploadedImages, tagDict });
-    const updatedUuid = await updateProduct(productUuid, dto);
+    const updatedUuid = await updateProduct(productUuid, dto); // ← 실제 호출
+    // 4) 상위에 알림(목록 새로고침 등)
     onUpdated?.({ productUuid: updatedUuid, payload });
     alert('상품이 수정되었습니다.');
-    onClose();
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : '상품 수정 중 오류가 발생했습니다.';
+    onClose(); // 모달 닫기
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : '수정 중 오류가 발생했습니다.';
     alert(msg);
   } finally {
     setSubmitting(false);
   }
 };
 
-// 삭제 
-const handleDelete = async () => {
-  if (!productUuid) return alert('상품 식별자가 없습니다.');
-  if (!confirm('정말 삭제하시겠어요?')) return;
 
-  try {
-    setSubmitting(true);
-    const deletedUuid = await deleteProduct(productUuid);
-    onDeleted?.({ productUuid: deletedUuid });
-    alert('상품이 삭제되었습니다.');
+  // 닫기 전에 스냅샷 저장
+  const handleCloseWithSave = () => {
+    if (mode === 'edit' && productId && onSaveSnapshot) {
+      onSaveSnapshot(productId, buildPayload());
+    }
     onClose();
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : '상품 삭제 중 오류가 발생했습니다.';
-    alert(msg);
-  } finally {
-    setSubmitting(false);
-  }
-};
+  };
 
   if (!open) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-[999] flex items-center justify-center bg-black/50"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/50" onClick={handleCloseWithSave}>
       <div
         className="bg-white rounded-2xl overflow-hidden shadow-xl w-[960px] max-w-[95vw] max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
@@ -520,7 +493,7 @@ const handleDelete = async () => {
 
             <button
               className="cursor-pointer rounded transition hover:bg-black/5 p-2"
-              onClick={onClose}
+              onClick={handleCloseWithSave}
               aria-label="닫기"
             >
               <X width={16} height={16} />
@@ -777,6 +750,16 @@ const handleDelete = async () => {
                 />
               </label>
 
+              {/* 재입고 여부 */}
+              <label className="flex items-center gap-3">
+                <span className="w-32 text-sm">재입고 상품</span>
+                <input
+                  type="checkbox"
+                  checked={isRestock}
+                  onChange={(e) => setIsRestock(e.target.checked)}
+                />
+              </label>
+
               {isPlanned && (
                 <>
                   <label className="flex items-center gap-3">
@@ -811,25 +794,26 @@ const handleDelete = async () => {
                     <p className="text-sm text-red-500 mt-2">{tagsError}</p>
                   ) : (
                     <div className="flex flex-wrap gap-3">
-                      {tagsRemote.map((t) => (
-                        <label
-                          key={t.id}
-                          className="inline-flex items-center gap-2 text-sm border rounded px-2 py-1"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={tags.includes(t.tagName)}
-                            onChange={(e) =>
-                              setTags((prev) =>
-                                e.target.checked
-                                  ? [...prev, t.tagName]
-                                  : prev.filter((x) => x !== t.tagName)
-                              )
-                            }
-                          />
-                          <span>{t.tagName}</span>
-                        </label>
-                      ))}
+                      {tagsRemote.map((t) => {
+  const label = ((t as any).tagName ?? (t as any).name ?? '').trim();
+  if (!label) return null;
+  const checked = tags.includes(label);
+  return (
+    <label key={t.id} className="inline-flex items-center gap-2 text-sm border rounded px-2 py-1">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) =>
+          setTags((prev) =>
+            e.target.checked ? [...prev, label] : prev.filter((x) => x !== label)
+          )
+        }
+      />
+      <span>{label}</span>
+    </label>
+  );
+})}
+
                     </div>
                   )}
                 </div>
@@ -1140,45 +1124,32 @@ const handleDelete = async () => {
         {/* 푸터 */}
         <hr />
         <div className="sticky bottom-0 z-10 bg-white px-6 py-4 flex justify-between gap-2">
-          
-          {/* 전체 초기화 버튼 */}
-          <div>
-            {mode === 'edit' && (
-              <button
-                onClick={resetAll}
-                className="px-3 py-2 rounded-md border border-red-500 text-red-600 font-semibold text-sm cursor-pointer"
-              >
-                초기화
-              </button>
-            )}
-          </div>
-
-          {/* 우측: 취소/제출 */}
           <div className="flex gap-2">
             <button
-              onClick={onClose}
+              onClick={handleCloseWithSave}
               className="px-3 py-2 rounded-md border border-primary text-primary font-semibold text-sm cursor-pointer"
             >
               {mode === 'edit' ? '수정취소' : '작성취소'}
             </button>
             {mode === 'edit' ? (
               <button
-                onClick={handleUpdate} disabled={submitting}
+                onClick={handleUpdate}
                 className="px-3 py-2 rounded-md border border-primary bg-primary text-white font-semibold text-sm cursor-pointer"
               >
                 수정하기
               </button>
             ) : (
               <button
-                onClick={handleCreate} disabled={submitting}
+                onClick={handleCreate}
                 className="px-3 py-2 rounded-md border border-primary bg-primary text-white font-semibold text-sm cursor-pointer"
               >
                 작성하기
               </button>
             )}
-            </div>
           </div>
+        </div>
       </div>
     </div>
   );
 }
+

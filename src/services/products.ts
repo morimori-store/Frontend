@@ -169,7 +169,7 @@ export async function deleteProduct(productUuid: string): Promise<string> {
   return json.data ?? productUuid;
 }
 
-// 상품목록 조회
+// 전체상품목록 조회
 export async function getProducts(params: ProductListParams): Promise<ProductListData> {
   const query = buildProductListQuery(params);
 
@@ -197,5 +197,81 @@ export async function getProducts(params: ProductListParams): Promise<ProductLis
   return json.data;
 }
 
+
+export type ArtistProductListParams = {
+  page?: number;                 // 0-based
+  size?: number;                 // 기본 10
+  keyword?: string;              // 검색어
+  selling?: boolean;             // 판매중만 필터
+  sort?: 'createDate' | 'price' | 'name';
+  order?: 'ASC' | 'DESC';
+};
+
+export type ArtistProduct = {
+  wishId?: string;
+  productId?: number;
+  productNumber?: string;
+  productName: string;
+  price: number;
+  artist?: { id: string; name: string };
+  imageUrl?: string;
+  sellingStatus?: 'SELLING' | 'STOPPED' | 'SOLD_OUT' | string;
+  registeredDate?: string; // ISO
+  addedAt?: string;        // ISO
+  productPageUrl?: string;
+  permissions?: { canUnwish?: boolean };
+};
+
+export type ArtistProductListData = {
+  content: ArtistProduct[];
+  page: number;           // 0-based
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
+};
+
+// 작가별 상품 조회
+export async function fetchArtistProducts(params: ArtistProductListParams = {}): Promise<ArtistProductListData> {
+  const {
+    page = 0,
+    size = 10,
+    keyword,
+    selling,
+    sort = 'createDate',
+    order = 'DESC',
+  } = params;
+
+  const sp = new URLSearchParams();
+  sp.set('page', String(page));     // 0-based 주의
+  sp.set('size', String(size));
+  if (keyword) sp.set('keyword', keyword);
+  if (typeof selling === 'boolean') sp.set('selling', String(selling));
+  if (sort) sp.set('sort', sort);
+  if (order) sp.set('order', order);
+
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/dashboard/artist/products?${sp.toString()}`, {
+    method: 'GET',
+    headers: { accept: 'application/json;charset=UTF-8' },
+    credentials: 'include',
+  });
+
+  const text = await res.text();
+  if (!res.ok) {
+    try {
+      const j = JSON.parse(text) as ApiResponse<null>;
+      throw new Error(j?.msg || `내 상품 목록 조회 실패 (${res.status})`);
+    } catch {
+      throw new Error(`내 상품 목록 조회 실패 (${res.status})`);
+    }
+  }
+
+  const json = JSON.parse(text) as ApiResponse<ArtistProductListData | null>;
+  if (json.resultCode !== '200' || !json.data) {
+    throw new Error(json.msg || '내 상품 목록 조회 실패');
+  }
+  return json.data;
+}
 
 
