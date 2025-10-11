@@ -8,12 +8,16 @@ export type UploadedImageInfo = {
   originalFileName: string;
 };
 
+// 작가대시보드 - 상품관리
 export type ProductRow = {
-  id: string; // 서버 UUID
+  id: string;
   name: string;
-  artistName: string;
-  sellingStatus: 'SELLING' | 'STOPPED' | 'SOLD_OUT';
-  createdAt: string; // ISO
+  author: string;
+  status: string;
+  createdAt: string; // YYYY-MM-DD
+  productId?: string;
+  productUuid?: string;   // 실제 수정/삭제용
+  payloadSnapshot?: ProductCreatePayload;
 };
 
 // 서버 DTO
@@ -73,7 +77,12 @@ export type ProductCreateDto = {
   size: string;
 };
 
-export type ApiResponse<T> = { resultCode: string; msg: string; data: T | null };
+// 공통 래퍼
+export type ApiResponse<T> = {
+  resultCode: string;
+  msg: string;
+  data: T;
+};
 
 // UI 타입
 export type ShippingTypeUI = 'FREE' | 'PAID' | 'CONDITIONAL';
@@ -117,32 +126,35 @@ export type ProductCreatePayload = {
 export type TagDict = Record<string, number>;
 
 // 상품 목록
-export type ProductListParams = {
-  categoryId?: number;   
-  tagIds?: number[];
-  minPrice?: number;      
-  maxPrice?: number;              
-  deliveryType?: 'FREE' | 'PAID' | 'CONDITIONAL'; 
-  sort?: 'newest' | 'priceAsc' | 'priceDesc' | 'popular';
-  page?: number;  
-  size?: number; 
-};
-
+// /api/products (페이지형)
 export type ProductListItem = {
   productUuid: string;
-  url: string; 
+  url: string;          // 썸네일/대표 이미지
   brandName: string;
   name: string;
-  price: number;
+  price: number | null;
   discountRate: number;
   discountPrice: number;
   rating: number;
 };
 
+// 페이지 컨테이너
 export type ProductListData = {
   page: number;
   size: number;
   totalElements: number;
   totalPages: number;
   products: ProductListItem[];
+};
+
+// 쿼리 파라미터
+export type ProductListParams = {
+  categoryId?: number;
+  tagIds?: number[]; // tagIds=1&tagIds=2
+  minPrice?: number;
+  maxPrice?: number;
+  deliveryType?: 'PAID' | 'FREE' | 'CONDITIONAL';
+  sort?: 'newest' | 'priceAsc' | 'priceDesc' | 'popular';
+  page?: number; // UI 기준 0부터 (서버 전송 시 +1)
+  size?: number; // 기본 10 
 };
