@@ -123,3 +123,61 @@ export interface CreateFundingResponse {
   msg: string;
   data: CreateFundingData;
 }
+
+//======== 펀딩 상세 페이지 =============
+export interface FundingDetailAuthor {
+  id: number;
+  name: string;
+  profileImageUrl: string;
+  artistDescription: string;
+}
+
+export interface FundingOption {
+  id: number;
+  name: string;
+  price: number;
+  stock: number;
+}
+
+export interface FundingNews {
+  id: number;
+  actorNickname: string;
+  title: string;
+  content: string;
+  imageUrl: string;
+  createDate: string;
+}
+
+export interface FundingCommunity {
+  id: number;
+  writerName: string;
+  profileImageUrl: string;
+  content: string;
+  createDate: string;
+}
+
+export interface FundingDetail {
+  id: number;
+  title: string;
+  description: string;
+  imageUrl: string;
+  categoryName: string;
+  targetAmount: number;
+  currentAmount: number;
+  participants: number;
+  startDate: string;
+  endDate: string;
+  remainingDays: number;
+  progress: number;
+  status: FundingStatus;
+  author: FundingDetailAuthor;
+  options: FundingOption[];
+  news: FundingNews[];
+  communities: FundingCommunity[];
+}
+
+export interface FundingDetailResponse {
+  resultCode: string;
+  msg: string;
+  data: FundingDetail;
+}

@@ -20,7 +20,11 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'i.namu.wiki',
+        hostname: 'i.namu.wiki', //펀딩 테스트용 데이터 이미지
+      },
+      {
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com', //구글 프로필 이미지
       },
     ],
   },

@@ -30,7 +30,11 @@ function FundingCard({ data }: Props) {
           <p className="text-sm font-semibold">달성률</p>
           <p className="ml-2 font-extrabold text-xl">{data.progress}%</p>
           <p className="ml-auto font-bold text-sm">
-            {data.remainingDays === 0 ? 'D-Day' : `D-${data.remainingDays}`}
+            {data.remainingDays > 0
+              ? `D-${data.remainingDays}`
+              : data.remainingDays === 0
+                ? 'D-Day'
+                : '펀딩 마감'}
           </p>
         </div>
       </div>

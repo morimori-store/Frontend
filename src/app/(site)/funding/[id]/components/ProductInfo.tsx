@@ -12,7 +12,8 @@ interface ProductInfoProps {
   currentAmount: number;
   targetAmount: number;
   remainingDays: number;
-  participantCount: number;
+  participants: number;
+  progress: number;
 }
 
 export default function ProductInfo({
@@ -21,9 +22,10 @@ export default function ProductInfo({
   currentAmount,
   targetAmount,
   remainingDays,
-  participantCount,
+  participants,
 }: ProductInfoProps) {
   const [isWishlisted, setIsWishlisted] = useState(false);
+  const isFundingEnded = remainingDays < 0;
 
   return (
     <div className="space-y-6 ml-[92px]">
@@ -49,21 +51,28 @@ export default function ProductInfo({
         </div>
         <div>
           <p>남은 기간</p>
-          <div className="font-bold text-gray-900">
-            {remainingDays}
-            <span className="text-[18px] font-normal">일</span>
-          </div>
+          {remainingDays > 0 && (
+            <div className="font-bold text-gray-900">
+              {remainingDays}
+              <span className="text-[18px] font-normal">일</span>
+            </div>
+          )}
+          {remainingDays <= 0 && (
+            <div className="font-bold text-gray-900">
+              {remainingDays === 0 ? '마감일' : '펀딩 종료'}
+            </div>
+          )}
         </div>
         <div>
           <p>후원자</p>
           <div className="font-bold text-gray-900">
-            {participantCount}
+            {participants}
             <span className="text-[18px] font-normal">명</span>
           </div>
         </div>
       </div>
 
-      <div className="space-x-3 flex gap-7">
+      {/* <div className="space-x-3 flex gap-7">
         <button className="max-w-[162px] w-full bg-white border-1 border-primary text-primary py-3 px-6 rounded-[6px] text-[25px] font-bold hover:bg-green-50 transition-colors">
           장바구니
         </button>
@@ -76,7 +85,47 @@ export default function ProductInfo({
         >
           {isWishlisted ? <FullHeart /> : <EmptyHeart />}
         </button>
+      </div> */}
+      <div className="space-x-3 flex gap-7">
+        <button
+          disabled={isFundingEnded}
+          className={`max-w-[162px] w-full border-1 py-3 px-6 rounded-[6px] text-[25px] font-bold transition-colors ${
+            isFundingEnded
+              ? 'bg-gray-200 border-gray-300 text-gray-400 cursor-not-allowed'
+              : 'bg-white border-primary text-primary hover:bg-green-50'
+          }`}
+        >
+          장바구니
+        </button>
+        <button
+          disabled={isFundingEnded}
+          className={`max-w-[162px] w-full py-3 px-6 rounded-[6px] text-[25px] font-bold transition-colors ${
+            isFundingEnded
+              ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+              : 'bg-primary text-white hover:bg-primary-60'
+          }`}
+        >
+          예약 구매
+        </button>
+        <button
+          disabled={isFundingEnded}
+          onClick={() => setIsWishlisted(!isWishlisted)}
+          className={`p-3 border rounded-lg transition-colors ${
+            isFundingEnded
+              ? 'border-gray-300 bg-gray-100 cursor-not-allowed opacity-50'
+              : 'border-gray-300 hover:border-primary'
+          }`}
+        >
+          {isWishlisted ? <FullHeart /> : <EmptyHeart />}
+        </button>
       </div>
+
+      {/* ⭐ 종료 메시지 표시 (선택사항) */}
+      {isFundingEnded && (
+        <p className="text-red-500 text-sm font-semibold">
+          이 펀딩은 종료되었습니다.
+        </p>
+      )}
     </div>
   );
 }

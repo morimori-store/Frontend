@@ -6,13 +6,7 @@ import { PopularFundingSlider } from './components/PopularFundingSlider';
 import { SortDropdown } from './components/SortDropdown';
 import { FundingGrid } from './components/FundingGrid';
 import { createNewFunding, fetchFundingList } from '@/utils/api/funding';
-import {
-  FundingListProps,
-  FundingItem,
-  FundingStatus,
-  SortBy,
-} from '@/types/funding';
-import Button from '@/components/Button';
+import { FundingListProps, FundingStatus, SortBy } from '@/types/funding';
 
 type SearchParams = {
   status?: string;

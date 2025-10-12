@@ -1,4 +1,3 @@
-// app/funding/[id]/_components/ProductImages.tsx
 'use client';
 
 import { useState } from 'react';
@@ -24,15 +23,15 @@ export default function ProductImages({ images }: ProductImagesProps) {
   };
 
   return (
-    <div className="space-y-4">
-      {/* Main Image */}
-      <div className="bg-gray-200 rounded-lg overflow-hidden">
+    <div className="flex flex-col h-full space-y-4">
+      <div className="relative flex-1 bg-gray-200 rounded-lg overflow-hidden min-h-[500px]">
         <Image
           src={images[currentImageIndex]}
           alt="Product main image"
-          className="w-full h-full object-cover"
-          width={645}
-          height={450}
+          fill
+          className="object-cover"
+          sizes="645px"
+          priority
         />
       </div>
 

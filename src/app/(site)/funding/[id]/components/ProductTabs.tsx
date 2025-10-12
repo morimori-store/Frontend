@@ -4,15 +4,21 @@
 import { useState } from 'react';
 import NewsInputModal from '@/components/funding/NewsInputModal';
 import CommunitySection from './CommunitySection';
+import NewsSection from './NewsSection';
+import { FundingNews, FundingCommunity } from '@/types/funding';
 
 interface ProductTabsProps {
   fundingId: number;
   description: string;
+  news: FundingNews[];
+  communities: FundingCommunity[];
 }
 
 export default function ProductTabs({
   fundingId,
   description,
+  news,
+  communities,
 }: ProductTabsProps) {
   const [selectedTab, setSelectedTab] = useState('description');
 
@@ -57,23 +63,18 @@ export default function ProductTabs({
             <div className="bg-gray-100 aspect-video rounded-lg flex items-center justify-center text-gray-500 mb-6">
               상세 페이지 이미지
             </div>
-            <p className="text-gray-700 whitespace-pre-wrap">{description}</p>
+            <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
+              {description}
+            </p>
           </div>
         )}
 
         {selectedTab === 'details' && (
-          <div className="bg-white rounded-lg shadow-sm flex flex-col">
-            <div className="ml-auto">
-              <NewsInputModal />
-            </div>
-            <div className="text-gray-500 p-6">
-              새 소식 내용이 여기에 표시됩니다.
-            </div>
-          </div>
+          <NewsSection fundingId={fundingId} news={news} />
         )}
 
         {selectedTab === 'shipping' && (
-          <CommunitySection fundingId={fundingId} />
+          <CommunitySection fundingId={fundingId} communities={communities} />
         )}
       </div>
     </div>

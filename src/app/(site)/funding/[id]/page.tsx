@@ -4,25 +4,33 @@ import ProductImages from './components/ProductImages';
 import ProductInfo from './components/ProductInfo';
 import ProductTabs from './components/ProductTabs';
 import AuthorInfo from './components/AuthorInfo';
+import { FundingDetailResponse } from '@/types/funding';
 
-// API 함수
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+
 async function getFundingDetail(id: string) {
   try {
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/fundings/${id}`,
-      {
-        cache: 'no-store',
-      },
-    );
+    const url = `${API_BASE_URL}/api/fundings/${id}`;
+    console.log('📤 API 호출:', url);
+
+    const response = await fetch(url, {
+      cache: 'no-store',
+    });
+
+    console.log('📥 응답 상태:', response.status);
 
     if (!response.ok) {
+      console.error('❌ 응답 실패:', response.status, response.statusText);
       return null;
     }
 
-    const data = await response.json();
-    return data.data; // API 응답 구조에 맞게 조정
+    const data: FundingDetailResponse = await response.json();
+    console.log('✅ 받은 데이터:', data);
+    console.log('resultCode:', data.resultCode);
+
+    return data.data;
   } catch (error) {
-    console.error('펀딩 상세 조회 실패:', error);
+    console.error('❌ 펀딩 상세 조회 실패:', error);
     return null;
   }
 }
@@ -35,12 +43,17 @@ export default async function FundingDetailPage({
   params,
 }: FundingDetailPageProps) {
   const resolvedParams = await params;
+  console.log('🔍 펀딩 ID:', resolvedParams.id);
+
   const funding = await getFundingDetail(resolvedParams.id);
+  console.log('📦 최종 펀딩 데이터:', funding);
 
   if (!funding) {
+    console.error('❌ 펀딩 데이터 없음 - not-found 표시');
     notFound();
   }
 
+  // 이미지 배열 구성
   const productImages = [
     funding.imageUrl,
     '/productImages/funding1.png',
@@ -52,10 +65,8 @@ export default async function FundingDetailPage({
     <div className="min-h-screen">
       <main className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-2 gap-8 mb-12">
-          {/* Product Images - 클라이언트 컴포넌트 */}
           <ProductImages images={productImages} />
 
-          {/* Product Info - 클라이언트 컴포넌트 */}
           <ProductInfo
             id={funding.id}
             title={funding.title}
@@ -63,21 +74,24 @@ export default async function FundingDetailPage({
             currentAmount={funding.currentAmount}
             targetAmount={funding.targetAmount}
             remainingDays={funding.remainingDays}
-            participantCount={funding.participantCount}
+            participants={funding.participants}
+            progress={funding.progress}
           />
         </div>
 
         <div className="grid grid-cols-2 gap-8">
-          {/* Product Tabs - 클라이언트 컴포넌트 */}
           <ProductTabs
             fundingId={funding.id}
             description={funding.description}
+            news={funding.news}
+            communities={funding.communities}
           />
 
-          {/* Author Info - 클라이언트 컴포넌트 */}
           <AuthorInfo
-            authorName={funding.authorName}
-            authorDescription="작가님은 뉴욕에 거주하며..."
+            authorId={funding.author.id}
+            authorName={funding.author.name}
+            authorDescription={funding.author.artistDescription}
+            profileImageUrl={funding.author.profileImageUrl}
           />
         </div>
       </main>
