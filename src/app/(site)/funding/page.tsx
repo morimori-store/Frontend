@@ -5,21 +5,56 @@ import { CategoryFilter } from './components/CategoryFilter';
 import { PopularFundingSlider } from './components/PopularFundingSlider';
 import { SortDropdown } from './components/SortDropdown';
 import { FundingGrid } from './components/FundingGrid';
+import { createNewFunding, fetchFundingList } from '@/utils/api/funding';
+import {
+  FundingListProps,
+  FundingItem,
+  FundingStatus,
+  SortBy,
+} from '@/types/funding';
+import Button from '@/components/Button';
 
-// 서버에서 데이터 페칭 (나중에 구현)
-async function getFundings() {
-  // const res = await fetch('...');
-  // return res.json();
-  return Array.from({ length: 12 }, (_, i) => ({ id: i }));
+type SearchParams = {
+  status?: string;
+  sortBy?: string;
+  keyword?: string;
+  minPrice?: string;
+  maxPrice?: string;
+  page?: string;
+  size?: string;
+};
+
+interface FundingPageProps {
+  searchParams: SearchParams;
 }
 
-async function getPopularFundings() {
-  return Array.from({ length: 8 }, (_, i) => ({ id: i }));
+async function getPopularFundings(params: FundingListProps) {
+  params.sortBy = 'popular';
+  return await fetchFundingList(params);
 }
 
-export default async function FundingPage() {
-  const fundings = await getFundings();
-  const popularFundings = await getPopularFundings();
+const parseSearchParams = (searchParams: SearchParams): FundingListProps => {
+  return {
+    status: searchParams.status
+      ? (searchParams.status.split(',') as FundingStatus[])
+      : undefined,
+    sortBy: (searchParams.sortBy as SortBy) || 'popular', // 디폴트: 최신순
+    keyword: searchParams.keyword || undefined,
+    minPrice: searchParams.minPrice ? Number(searchParams.minPrice) : undefined,
+    maxPrice: searchParams.maxPrice ? Number(searchParams.maxPrice) : undefined,
+    page: searchParams.page ? Number(searchParams.page) : 0, // 디폴트: 0페이지
+    size: searchParams.size ? Number(searchParams.size) : 16, // 디폴트: 12개
+  };
+};
+
+export default async function FundingPage({ searchParams }: FundingPageProps) {
+  const resolvedSearchParams = await searchParams;
+  const params = parseSearchParams(resolvedSearchParams);
+
+  console.log('params : ', params);
+  const fundings = await fetchFundingList(params);
+  console.log('fundings : ', fundings);
+  const popularFundings = await getPopularFundings(params);
 
   const categories = [
     { name: '스티커', count: 999 },
@@ -48,6 +83,7 @@ export default async function FundingPage() {
           </div>
 
           <FundingGrid fundings={fundings} />
+          {/* <TestCreateFunding /> */}
         </main>
       </div>
     </>

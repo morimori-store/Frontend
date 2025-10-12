@@ -2,24 +2,32 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 const sortOptions = [
   { id: 'popular', label: '인기순' },
-  { id: 'latest', label: '최신순' },
+  { id: 'recent', label: '최신순' },
   { id: 'reviews', label: '리뷰 많은순' },
   { id: 'rating', label: '별점 높은순' },
 ];
+const sorOptionToKr = (input: string) => {
+  return sortOptions.find((elem) => elem.id === input)?.label;
+};
 
 export function SortDropdown() {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [selected, setSelected] = useState('popular');
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const currentSort = searchParams.get('sortBy') || 'recent';
 
   const handleSelect = (id: string) => {
-    setSelected(id);
     setIsExpanded(false);
-  };
+    const params = new URLSearchParams(searchParams);
+    params.set('sortBy', id);
+    params.set('page', '0'); // 정렬 변경 시 첫 페이지로
 
-  const selectedLabel = sortOptions.find((opt) => opt.id === selected)?.label;
+    router.push(`/funding?${params.toString()}`);
+  };
 
   return (
     <div className="relative">
@@ -40,7 +48,7 @@ export function SortDropdown() {
             d="M19 9l-7 7-7-7"
           />
         </svg>
-        <span className="font-medium">{selectedLabel}</span>
+        <span className="font-medium">{sorOptionToKr(currentSort)}</span>
       </button>
 
       {isExpanded && (

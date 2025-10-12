@@ -11,6 +11,7 @@ interface PopularFundingSliderProps {
 
 export function PopularFundingSlider({ fundings }: PopularFundingSliderProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
+  if (!fundings) return <p>펀딩이 없습니다.</p>;
   const itemsPerPage = 4;
   const totalPages = Math.ceil(fundings.length / itemsPerPage);
 
