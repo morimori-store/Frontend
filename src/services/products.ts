@@ -37,7 +37,56 @@ function buildProductListQuery(params: ProductListParams) {
   return q ? `?${q}` : '';
 }
 
-// 이미지 업로드
+// 에디터 (description) 이미지 업로드
+export async function uploadDescriptionImages(files: File[]): Promise<string[]> {
+  const form = new FormData();
+  files.forEach((f) => form.append('files', f));
+
+  let token = '';
+  try {
+    token = localStorage.getItem('accessToken') || '';
+  } catch {}
+
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/products/description-images`,
+    {
+      method: 'POST',
+      body: form,
+      // FormData 사용 시 Content-Type은 브라우저가 자동 설정 
+      headers: {
+        accept: 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      // 세션/쿠키 기반 인증
+      credentials: 'include',
+    }
+  );
+
+  // 에러 처리
+  if (!res.ok) {
+    let msg = '설명 이미지 업로드 실패';
+    try {
+      const j = await res.json();
+      if (j?.msg) msg = j.msg;
+    } catch {}
+    if (res.status === 401) {
+      // 인증 실패
+      throw new Error('로그인이 필요합니다.');
+    }
+    throw new Error(msg);
+  }
+
+  const json = await res.json();
+  const urls: string[] = (json?.data ?? [])
+    .map((x: any) => x?.fileUrl)
+    .filter(Boolean);
+
+  if (!urls.length) throw new Error('설명 이미지 업로드 결과가 비어 있습니다.');
+  return urls;
+}
+
+
+// (첨부파일) 이미지 업로드
 export async function uploadProductImages(
   files: File[],
   types: UploadType[]

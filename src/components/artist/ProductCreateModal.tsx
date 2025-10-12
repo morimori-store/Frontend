@@ -1,14 +1,13 @@
-
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import X from '@/assets/icon/x.svg';
 import Paperclip from '@/assets/icon/paperclip2.svg';
 import NoticeEditor from '@/components/editor/NoticeEditor';
-import { createProduct, updateProduct, uploadProductImages } from '@/services/products';
-import { fetchCategoriesClient } from '@/lib/server/categories.client';
+import { createProduct, updateProduct, uploadDescriptionImages, uploadProductImages } from '@/services/products';
+import { fetchCategoriesClient } from '@/lib/client/categories.client';
 import type { Category } from '@/types/category';
-import { fetchTagsClient } from '@/lib/server/tags.client';
+import { fetchTagsClient } from '@/lib/client/tags.client';
 import type { Tag as RemoteTag } from '@/types/tag';
 
 import type {
@@ -22,8 +21,14 @@ import type {
   ProductAddonUI,
 } from '@/types/product';
 
-const toLocalDateTime = (s?: string | null) =>
-  s ? (s.includes(':') && s.length === 16 ? `${s}:00` : s) : null;
+
+// 서버 LocalDate(YYYY-MM-DD)로 잘라서 보내기
+const dateOnly = (s?: string | null) => {
+  if (!s) return null;
+  const d = s.slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
+};
+const isBlank = (v?: string | null) => !v || v.trim().length === 0;
 
 // 폼 → 판매상태 계산
 function computeSellingStatusFromPayload(p: ProductCreatePayload): 'BEFORE_SELLING' | 'SELLING' | 'SOLD_OUT' | 'END_OF_SALE' {
@@ -40,7 +45,37 @@ function computeSellingStatusFromPayload(p: ProductCreatePayload): 'BEFORE_SELLI
 
 const normalizeTagName = (s?: string) => (s ?? '').trim().toLowerCase();
 
+// 사업자정보 API 
+type ArtistBizInfo = {
+  businessName?: string;
+  businessNumber?: string;
+  ownerName?: string;
+  asManager?: string;
+  email?: string;
+  businessAddress?: string;
+  telecomSalesNumber?: string;
+};
+type ApiEnvelope<T> = { resultCode: string; msg: string; data: T | null };
 
+async function fetchArtistBusinessInfo(): Promise<ArtistBizInfo | null> {
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/artist/business-info`, {
+      method: 'GET',
+      headers: { accept: 'application/json;charset=UTF-8' },
+      credentials: 'include',
+    });
+    const json: ApiEnvelope<ArtistBizInfo> | undefined = await res.json().catch(() => undefined);
+
+    if (!res.ok) {
+      alert(json?.msg ?? '사업자 정보 조회 실패');
+      return null;
+    }
+    return json?.data ?? null;
+  } catch {
+    alert('사업자 정보 조회 중 오류가 발생했습니다.');
+    return null;
+  }
+}
 
 function toProductCreateDto(
   payload: ProductCreatePayload,
@@ -52,8 +87,8 @@ function toProductCreateDto(
 
   // 이름 → ID 매핑 (정규화)
   const tagIds = (payload.tags ?? [])
-  .map((name) => opts.tagDict[normalizeTagName(name)])
-  .filter((id): id is number => Number.isInteger(id));
+    .map((name) => opts.tagDict[normalizeTagName(name)])
+    .filter((id): id is number => Number.isInteger(id));
 
   return {
     categoryId,
@@ -81,8 +116,10 @@ function toProductCreateDto(
 
     isPlanned: !!payload.plannedSale,
     isRestock: !!opts.isRestock,
-    sellingStartDate: payload.plannedSale ? toLocalDateTime(payload.plannedSale.startAt) : null,
-    sellingEndDate: payload.plannedSale ? toLocalDateTime(payload.plannedSale.endAt) : null,
+
+    // 서버 LocalDate 요구에 맞춰 절단
+    sellingStartDate: payload.plannedSale ? dateOnly(payload.plannedSale.startAt) : null,
+    sellingEndDate: payload.plannedSale ? dateOnly(payload.plannedSale.endAt) : null,
 
     tags: tagIds,
 
@@ -105,7 +142,7 @@ function toProductCreateDto(
       originalFileName: img.originalFileName,
     })),
 
-    certification: payload.lawCert?.required ?? false,
+    certification: payload.certification ?? false,
     origin: payload.origin,
     material: payload.material,
     size: payload.size,
@@ -119,9 +156,9 @@ type Props = {
   // 생성
   onCreated?: (args: { productUuid: string; payload: ProductCreatePayload }) => void;
 
-  // 수정/삭제
+  // 수정 /삭제
   mode?: 'create' | 'edit';
-  productUuid?: string; // ← 사용 안 함(무시)
+  productUuid?: string;
   initialPayload?: ProductCreatePayload;
   onUpdated?: (args: { productUuid: string; payload: ProductCreatePayload }) => void;
   onDeleted?: (args: { productUuid: string }) => void;
@@ -133,10 +170,15 @@ type Props = {
 
   // 공통
   initialBrand?: string;
-  initialBizInfo?: { companyName?: string; bizNumber?: string; ceoName?: string };
-  onLoadBizFromProfile?: () =>
-    | Promise<{ companyName?: string; bizNumber?: string; ceoName?: string } | void>
-    | void;
+  initialBizInfo?: {
+    businessName?: string;       // 제조자
+    businessNumber?: string;     // 사업자 등록 번호
+    ownerName?: string;          // 대표자명
+    asManager?: string;          // A/S 책임자 / 전화번호
+    email?: string;              // 전자우편주소
+    businessAddress?: string;    // 사업장 소재지
+    telecomSalesNumber?: string; // 통신 판매업 신고 번호
+  };
 };
 
 export default function ProductCreateModal({
@@ -144,15 +186,14 @@ export default function ProductCreateModal({
   onClose,
   onCreated,
   mode = 'create',
-  productUuid, // 사용 안함
+  productUuid,
   initialPayload,
   onUpdated,
   onDeleted,
-  productId,       
-  onSaveSnapshot,   
+  productId,
+  onSaveSnapshot,
   initialBrand = '모리모리',
   initialBizInfo,
-  onLoadBizFromProfile,
 }: Props) {
   // 기본 정보
   const [brand, setBrand] = useState(initialBrand);
@@ -205,12 +246,18 @@ export default function ProductCreateModal({
     setAddons((p) => p.map((o, i) => (i === idx ? { ...o, ...patch } : o)));
 
   const [lawCertRequired, setLawCertRequired] = useState<boolean>(false);
-  const [lawCertDetail, setLawCertDetail] = useState<string>('');
+
+  // 7개 사업자 정보 상태
   const [bizInfo, setBizInfo] = useState({
-    companyName: initialBizInfo?.companyName ?? '',
-    bizNumber: initialBizInfo?.bizNumber ?? '',
-    ceoName: initialBizInfo?.ceoName ?? '',
+    businessName: initialBizInfo?.businessName ?? '',
+    businessNumber: initialBizInfo?.businessNumber ?? '',
+    ownerName: initialBizInfo?.ownerName ?? '',
+    asManager: initialBizInfo?.asManager ?? '',
+    email: initialBizInfo?.email ?? '',
+    businessAddress: initialBizInfo?.businessAddress ?? '',
+    telecomSalesNumber: initialBizInfo?.telecomSalesNumber ?? '',
   });
+  const [bizLoading, setBizLoading] = useState(false);
 
   const [editorValue, setEditorValue] = useState('');
   const [files, setFiles] = useState<File[]>([]);
@@ -218,6 +265,23 @@ export default function ProductCreateModal({
   const [previews, setPreviews] = useState<string[]>([]);
   const [uploadedImages, setUploadedImages] = useState<UploadedImageInfo[]>([]);
   const [submitting, setSubmitting] = useState(false);
+
+  const [editorFullscreen, setEditorFullscreen] = useState(false);
+
+  // ESC로 닫기 + 바디 스크롤락
+useEffect(() => {
+  if (!editorFullscreen) return;
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') setEditorFullscreen(false);
+  };
+  window.addEventListener('keydown', onKey);
+  const prev = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  return () => {
+    window.removeEventListener('keydown', onKey);
+    document.body.style.overflow = prev;
+  };
+}, [editorFullscreen]);
 
   // 모달 열릴 때 태그/카테고리 로드
   useEffect(() => {
@@ -276,14 +340,14 @@ export default function ProductCreateModal({
   }, [catTree, category1]);
 
   // 태그명 키를 정규화해서 저장
-const tagDict = useMemo(() => {
-  const dict: TagDict = {};
-  const normalize = (s?: string) => (s ?? '').trim().toLowerCase();
-  tagsRemote.forEach((t) => {
-    if (t?.tagName) dict[normalize(t.tagName)] = t.id;
-  });
-  return dict;
-}, [tagsRemote])
+  const tagDict = useMemo(() => {
+    const dict: TagDict = {};
+    const normalize = (s?: string) => (s ?? '').trim().toLowerCase();
+    tagsRemote.forEach((t) => {
+      if (t?.tagName) dict[normalize(t.tagName)] = t.id;
+    });
+    return dict;
+  }, [tagsRemote]);
 
   useEffect(() => {
     const urls = files.map((f) => (f.type?.startsWith('image/') ? URL.createObjectURL(f) : ''));
@@ -296,7 +360,9 @@ const tagDict = useMemo(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
+    return () => {
+      document.body.style.overflow = prev;
+    };
   }, [open]);
 
   function hydrateFromPayload(payload: ProductCreatePayload) {
@@ -335,16 +401,19 @@ const tagDict = useMemo(() => {
     setOptions(payload.options ?? []);
     setAddons(payload.addons ?? []);
 
-    setLawCertRequired(!!payload.lawCert?.required);
-    setLawCertDetail(payload.lawCert?.detail ?? '');
-    setBizInfo({
-      companyName: payload.bizInfo?.companyName ?? '',
-      bizNumber: payload.bizInfo?.bizNumber ?? '',
-      ceoName: payload.bizInfo?.ceoName ?? '',
-    });
+
+    setBizInfo((prev) => ({
+      businessName: payload.bizInfo?.companyName ?? prev.businessName ?? '',
+      businessNumber: payload.bizInfo?.bizNumber ?? prev.businessNumber ?? '',
+      ownerName: payload.bizInfo?.ceoName ?? prev.ownerName ?? '',
+      asManager: prev.asManager ?? '',
+      email: prev.email ?? '',
+      businessAddress: prev.businessAddress ?? '',
+      telecomSalesNumber: prev.telecomSalesNumber ?? '',
+    }));
+
     setEditorValue(payload.description ?? '');
   }
-
 
   const handleSelectFiles = (incoming: File[]) => {
     if (incoming.length === 0) return;
@@ -377,16 +446,57 @@ const tagDict = useMemo(() => {
     }
   };
 
-  const handleLoadBizFromProfile = async () => {
-    if (!onLoadBizFromProfile) return;
-    const res = (await onLoadBizFromProfile()) || {};
+  // 작가 사업자 정보 API 호출
+  const handleFetchArtistBizInfo = async () => {
+    setBizLoading(true);
+    const data = await fetchArtistBusinessInfo();
+    setBizLoading(false);
+    if (!data) return;
+
     setBizInfo((prev) => ({
-      ...prev,
-      companyName: res.companyName ?? prev.companyName,
-      bizNumber: res.bizNumber ?? prev.bizNumber,
-      ceoName: res.ceoName ?? prev.ceoName,
+      businessName: data.businessName ?? prev.businessName,
+      businessNumber: data.businessNumber ?? prev.businessNumber,
+      ownerName: data.ownerName ?? prev.ownerName,
+      asManager: data.asManager ?? prev.asManager,
+      email: data.email ?? prev.email,
+      businessAddress: data.businessAddress ?? prev.businessAddress,
+      telecomSalesNumber: data.telecomSalesNumber ?? prev.telecomSalesNumber,
     }));
   };
+
+  // 에디터 (description) 이미지 업로드
+  // 기존 단일 파일용 → 멀티 파일도 지원하도록 교체
+const handleUploadDescImage = async (fileOrFiles: File | File[] | FileList): Promise<string> => {
+  // 1) 어떤 타입이 와도 files 배열로 통일
+  const files: File[] = Array.isArray(fileOrFiles)
+    ? fileOrFiles
+    : fileOrFiles instanceof FileList
+    ? Array.from(fileOrFiles)
+    : [fileOrFiles];
+
+  // 2) 업로드
+  let urls: string[] = [];
+  try {
+    urls = await uploadDescriptionImages(files); // S3에 모두 업로드 → URL 배열
+  } catch (e: any) {
+    alert(e?.message ?? '설명 이미지 업로드에 실패했습니다.');
+    throw e;
+  }
+
+  if (!urls.length) throw new Error('설명 이미지 URL을 받지 못했습니다.');
+
+  // 3) 에디터 본문에 여러 장 모두 삽입
+  //    - 에디터가 HTML을 허용한다면 <img> 태그로 추가
+  //    - 에디터가 Markdown이라면 ![]() 형태로 추가
+  setEditorValue((prev) => {
+    const imgs = urls.map((u) => `<p><img src="${u}" alt="" /></p>`).join('');
+    return (prev ?? '') + imgs;
+  });
+
+  // 4) onUploadImage의 계약을 유지하기 위해 "첫 번째" URL만 반환
+  return urls[0];
+};
+
 
   // 폼 payload
   const buildPayload = (): ProductCreatePayload => ({
@@ -414,61 +524,193 @@ const tagDict = useMemo(() => {
     tags,
     options: useOptions ? options : [],
     addons: useOptions ? addons : [],
-    lawCert: lawCertRequired ? { required: true, detail: lawCertDetail } : { required: false },
+    certification: lawCertRequired,
     description: editorValue,
-    bizInfo,
-    attachments: [],
   });
+
+  // 필수입력값 alert 검증
+  function validateAgainstBackendRules(
+    p: ProductCreatePayload,
+    ctx: {
+      uploadedImages: UploadedImageInfo[];
+      shippingType: ShippingTypeUI;
+      usingOptions: boolean;
+      bundleShippingAvailable: boolean;
+      isRestock: boolean;
+      isPlanned: boolean;
+    }
+  ) {
+    const errs: string[] = [];
+
+    // 필수 텍스트
+    if (isBlank(p.title)) errs.push('상품명은 필수입니다.');
+    if (isBlank(p.brand)) errs.push('브랜드명은 필수입니다.');
+    if (isBlank(p.modelName)) errs.push('품명/모델명은 필수입니다.');
+    const hasCategory = !!p.category2 || !!p.category1;
+    if (!hasCategory) errs.push('카테고리를 선택해주세요.');
+    if (isBlank(p.size)) errs.push('사이즈는 필수입니다.');
+    if (isBlank(p.material)) errs.push('재질은 필수입니다.');
+    if (isBlank(p.origin)) errs.push('제조국은 필수입니다.');
+
+    // 가격/재고/할인
+    if (p.price == null || p.price < 1) errs.push('정가는 최소 1 이상이어야 합니다.');
+    if (p.discountRate == null || p.discountRate < 0 || p.discountRate > 100)
+      errs.push('할인율은 0 이상 100 이하이어야 합니다.');
+    if (p.stock == null || p.stock < 1) errs.push('재고는 최소 1 이상이어야 합니다.');
+
+    // 구매수량
+    if (p.minQty == null || p.minQty < 1) errs.push('최소 구매 수량은 1 이상이어야 합니다.');
+    if (p.maxQty == null || p.maxQty < 1) errs.push('최대 구매 수량은 1 이상이어야 합니다.');
+    if (p.minQty != null && p.maxQty != null && p.maxQty < p.minQty)
+      errs.push('최대 구매 수량은 최소 구매 수량 이상이어야 합니다.');
+
+    // 배송 (타입별 맞춤 검증)
+    if (!p.shipping?.type) {
+      errs.push('배송비 유형은 필수입니다.');
+    } else {
+      switch (ctx.shippingType) {
+        case 'FREE':
+          if (p.shipping.jejuExtraFee == null || p.shipping.jejuExtraFee < 0) {
+            errs.push('무료배송 시 제주 추가배송비를 입력해주세요 (0 이상).');
+          }
+          break;
+
+        case 'PAID':
+          if (p.shipping.fee == null || p.shipping.fee <= 0) {
+            errs.push('유료배송 시 배송비를 입력해주세요 (1원 이상).');
+          }
+          if (p.shipping.jejuExtraFee == null || p.shipping.jejuExtraFee < 0) {
+            errs.push('유료배송 시 제주 추가배송비를 입력해주세요 (0 이상).');
+          }
+          break;
+
+        case 'CONDITIONAL':
+          if (p.shipping.fee == null || p.shipping.fee < 0) {
+            errs.push('조건부 무료배송 시 기본 배송비를 입력해주세요 (0 이상).');
+          }
+          if (p.shipping.freeThreshold == null || p.shipping.freeThreshold <= 0) {
+            errs.push('조건부 무료배송 기준 금액을 입력해주세요.');
+          }
+          if (p.shipping.jejuExtraFee == null || p.shipping.jejuExtraFee < 0) {
+            errs.push('조건부 무료배송 시 제주 추가배송비를 입력해주세요 (0 이상).');
+          }
+          break;
+
+        default:
+          errs.push('배송비 유형은 필수입니다.');
+      }
+    }
+
+    // 판매 설정(기획/재입고)
+    if (typeof ctx.isPlanned !== 'boolean') errs.push('기획상품 여부는 필수입니다.');
+    if (typeof ctx.isRestock !== 'boolean') errs.push('재입고 여부는 필수입니다.');
+    if (p.plannedSale) {
+      if (isBlank(p.plannedSale.startAt)) errs.push('기획상품의 판매 시작일을 입력해주세요.');
+      if (p.plannedSale.endAt && p.plannedSale.startAt && new Date(p.plannedSale.endAt) < new Date(p.plannedSale.startAt)) {
+        errs.push('판매 종료일은 시작일 이후여야 합니다.');
+      }
+    }
+
+    // 태그/이미지
+    if (!p.tags || p.tags.length < 1) errs.push('스타일 태그는 최소 1개 이상 선택해주세요.');
+    if (!ctx.uploadedImages || ctx.uploadedImages.length < 1)
+      errs.push('이미지는 최소 1개 이상 업로드해야 합니다.');
+
+    // KC 인증 여부
+    if (p.certification == null) errs.push('KC 인증 여부는 필수입니다.');
+
+
+    // 옵션/추가상품 사용 시
+    if (ctx.usingOptions) {
+      (p.options ?? []).forEach((o, i) => {
+        if (isBlank(o.name)) errs.push(`옵션 #${i + 1}: 옵션명은 필수입니다.`);
+        if (o.stock == null || o.stock < 1) errs.push(`옵션 #${i + 1}: 재고는 1 이상이어야 합니다.`);
+        if (o.extraPrice == null || o.extraPrice < 0) errs.push(`옵션 #${i + 1}: 추가금은 0 이상이어야 합니다.`);
+      });
+      (p.addons ?? []).forEach((a, i) => {
+        if (isBlank(a.name)) errs.push(`추가상품 #${i + 1}: 이름은 필수입니다.`);
+        if (a.stock == null || a.stock < 1) errs.push(`추가상품 #${i + 1}: 재고는 1 이상이어야 합니다.`);
+        if (a.extraPrice == null || a.extraPrice < 0) errs.push(`추가상품 #${i + 1}: 가격은 0 이상이어야 합니다.`);
+      });
+    }
+
+    // 본문
+    if (isBlank(p.description)) errs.push('상품 상세 설명은 필수입니다.');
+
+    return errs;
+  }
 
   // 생성
   const handleCreate = async () => {
     const payload = buildPayload();
-    if (!payload.title.trim()) return alert('상품명을 입력해주세요.');
-    if (payload.price < 0) return alert('판매가는 0 이상이어야 합니다.');
-    if (payload.shipping.type === 'CONDITIONAL' && (!payload.shipping.freeThreshold || payload.shipping.freeThreshold <= 0))
-      return alert('조건부 무료배송 기준 금액을 입력해주세요.');
+
+    // 서버 DTO 규칙에 맞춘 1차 검증
+    const errs = validateAgainstBackendRules(payload, {
+      uploadedImages,
+      shippingType,
+      usingOptions: useOptions,
+      bundleShippingAvailable: bundleShipping,
+      isRestock,
+      isPlanned,
+    });
+    if (errs.length) {
+      alert(errs[0]);
+      return;
+    }
 
     const dto = toProductCreateDto(payload, { uploadedImages, tagDict, isRestock });
 
-    const newUuid = await createProduct(dto);
-    onCreated?.({ productUuid: newUuid, payload });
-    alert(`상품 등록 성공: ${newUuid}`);
-    onClose();
+    try {
+      setSubmitting(true);
+      const newUuid = await createProduct(dto);
+      onCreated?.({ productUuid: newUuid, payload });
+      alert(`상품 등록 성공: ${newUuid}`);
+      onClose();
+    } catch (e: any) {
+      alert(e?.message ?? '등록 중 오류가 발생했습니다.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // 수정
   const handleUpdate = async () => {
-  // 1) 필수값 검증
-  const payload = buildPayload();
-  if (!payload.title.trim()) return alert('상품명을 입력해주세요.');
-  if (payload.price < 0) return alert('판매가는 0 이상이어야 합니다.');
-  if (payload.shipping.type === 'CONDITIONAL' && (!payload.shipping.freeThreshold || payload.shipping.freeThreshold <= 0))
-    return alert('조건부 무료배송 기준 금액을 입력해주세요.');
+    const payload = buildPayload();
 
-  // 2) DTO 변환
-  const dto = toProductCreateDto(payload, { uploadedImages, tagDict, isRestock });
+    // 서버 DTO 규칙에 맞춘 1차 검증
+    const errs = validateAgainstBackendRules(payload, {
+      uploadedImages,
+      shippingType,
+      usingOptions: useOptions,
+      bundleShippingAvailable: bundleShipping,
+      isRestock,
+      isPlanned,
+    });
+    if (errs.length) {
+      alert(errs[0]);
+      return;
+    }
 
-  // 3) uuid 확인
-  if (!productUuid) {
-    alert('이 상품의 productUuid를 찾지 못해 수정할 수 없습니다.');
-    return;
-  }
+    const dto = toProductCreateDto(payload, { uploadedImages, tagDict, isRestock });
 
-  try {
-    setSubmitting(true);
-    const updatedUuid = await updateProduct(productUuid, dto); // ← 실제 호출
-    // 4) 상위에 알림(목록 새로고침 등)
-    onUpdated?.({ productUuid: updatedUuid, payload });
-    alert('상품이 수정되었습니다.');
-    onClose(); // 모달 닫기
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : '수정 중 오류가 발생했습니다.';
-    alert(msg);
-  } finally {
-    setSubmitting(false);
-  }
-};
+    if (!productUuid) {
+      alert('이 상품의 productUuid를 찾지 못해 수정할 수 없습니다.');
+      return;
+    }
 
+    try {
+      setSubmitting(true);
+      const updatedUuid = await updateProduct(productUuid, dto);
+      onUpdated?.({ productUuid: updatedUuid, payload });
+      alert('상품이 수정되었습니다.');
+      onClose();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : '수정 중 오류가 발생했습니다.';
+      alert(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   // 닫기 전에 스냅샷 저장
   const handleCloseWithSave = () => {
@@ -522,15 +764,17 @@ const tagDict = useMemo(() => {
                 <input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
+                  placeholder="예) 모리모리 스티커팩"
                   className="flex-1 rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                 />
               </label>
 
               <label className="flex items-center gap-3">
-                <span className="w-28 shrink-0 text-sm">모델명</span>
+                <span className="w-28 shrink-0 text-sm">품명/모델명</span>
                 <input
                   value={modelName}
                   onChange={(e) => setModelName(e.target.value)}
+                  placeholder="예) ABC-123"
                   className="flex-1 rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                 />
               </label>
@@ -566,11 +810,7 @@ const tagDict = useMemo(() => {
                   className="rounded border border-[var(--color-gray-200)] py-2 px-3 text-sm"
                 >
                   <option value="">
-                    {!category1
-                      ? '하위 카테고리'
-                      : subOptions.length
-                      ? '하위 카테고리'
-                      : '하위 카테고리 없음'}
+                    {!category1 ? '하위 카테고리' : subOptions.length ? '하위 카테고리' : '하위 카테고리 없음'}
                   </option>
                   {category1 &&
                     subOptions.map((s: Category) => (
@@ -586,6 +826,7 @@ const tagDict = useMemo(() => {
                 <input
                   value={size}
                   onChange={(e) => setSize(e.target.value)}
+                  placeholder="예) 12x30x5cm"
                   className="flex-1 rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                 />
               </label>
@@ -594,14 +835,16 @@ const tagDict = useMemo(() => {
                 <input
                   value={material}
                   onChange={(e) => setMaterial(e.target.value)}
+                  placeholder="예) 면 100%"
                   className="flex-1 rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                 />
               </label>
               <label className="flex items-center gap-3">
-                <span className="w-28 text-sm">원산지</span>
+                <span className="w-28 text-sm">제조국</span>
                 <input
                   value={origin}
                   onChange={(e) => setOrigin(e.target.value)}
+                  placeholder="예) 대한민국"
                   className="flex-1 rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                 />
               </label>
@@ -618,8 +861,9 @@ const tagDict = useMemo(() => {
                 <span className="w-28 text-sm">판매가</span>
                 <input
                   type="number"
+                  min={1}
                   value={price}
-                  onChange={(e) => setPrice(Number(e.target.value) || 0)}
+                  onChange={(e) => setPrice(Number(e.target.value) || 1)}
                   className="flex-1 rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                 />
               </label>
@@ -638,9 +882,9 @@ const tagDict = useMemo(() => {
                 <span className="w-28 text-sm">재고</span>
                 <input
                   type="number"
-                  min={0}
+                  min={1}
                   value={stock}
-                  onChange={(e) => setStock(Number(e.target.value) || 0)}
+                  onChange={(e) => setStock(Number(e.target.value) || 1)}
                   className="flex-1 rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                 />
               </label>
@@ -658,14 +902,17 @@ const tagDict = useMemo(() => {
                 <span className="w-28 text-sm">최대구매</span>
                 <input
                   type="number"
-                  min={0}
+                  min={1}
                   value={maxQty}
-                  onChange={(e) => setMaxQty(Number(e.target.value) || 0)}
-                  placeholder="0 = 제한 없음"
+                  onChange={(e) => setMaxQty(Number(e.target.value) || 1)}
+                  placeholder="최소 1 이상"
                   className="flex-1 rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                 />
               </label>
             </div>
+            <p className="inline-block text-xs text-gray-500 bg-primary-20 p-1">
+              * 판매가 (≥1원), 재고 (≥1개), 최소/최대 구매 수량 (≥1개), 할인율 (0~100%)
+            </p>
           </section>
 
           <hr />
@@ -733,6 +980,9 @@ const tagDict = useMemo(() => {
                 />
               </label>
             </div>
+            <p className="inline-block text-xs text-gray-500 bg-primary-20 p-1">
+              * 배송비 유형 (필수), 기본/추가 배송비 (≥0원), 조건부 무료 시 기준금액 필요합니다.
+            </p>
           </section>
 
           <hr />
@@ -795,27 +1045,28 @@ const tagDict = useMemo(() => {
                   ) : (
                     <div className="flex flex-wrap gap-3">
                       {tagsRemote.map((t: RemoteTag) => {
-  const label = (t.tagName ?? '').trim(); 
-  if (!label) return null;
-  const checked = tags.includes(label);
-  return (
-    <label key={t.id} className="inline-flex items-center gap-2 text-sm border rounded px-2 py-1">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) =>
-          setTags((prev) => (e.target.checked ? [...prev, label] : prev.filter((x) => x !== label)))
-        }
-      />
-      <span>{label}</span>
-    </label>
-  );
-})}
-
-
+                        const label = (t.tagName ?? '').trim();
+                        if (!label) return null;
+                        const checked = tags.includes(label);
+                        return (
+                          <label key={t.id} className="inline-flex items-center gap-2 text-sm border border-gray-200 rounded px-2">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) =>
+                                setTags((prev) => (e.target.checked ? [...prev, label] : prev.filter((x) => x !== label)))
+                              }
+                            />
+                            <span className="py-2">{label}</span>
+                          </label>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
+                <p className="inline-block text-xs text-gray-500 bg-primary-20 p-1 my-2">
+                  * 스타일 태그는 최소 1개 이상 선택해주세요.
+                </p>
               </div>
             </div>
           </section>
@@ -843,25 +1094,25 @@ const tagDict = useMemo(() => {
                   {options.map((opt, idx) => (
                     <div key={opt.id} className="grid grid-cols-1 md:grid-cols-4 gap-2">
                       <input
-                        placeholder="옵션명 (예: 색상/레드)"
+                        placeholder="옵션명"
                         value={opt.name}
                         onChange={(e) => updateOption(idx, { name: e.target.value })}
                         className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                       />
                       <input
                         type="number"
-                        placeholder="추가금(원)"
-                        value={opt.extraPrice ?? 0}
-                        onChange={(e) =>
-                          updateOption(idx, { extraPrice: Number(e.target.value) || 0 })
-                        }
+                        min={1}
+                        placeholder="재고"
+                        value={opt.stock ?? 0}
+                        onChange={(e) => updateOption(idx, { stock: Number(e.target.value) || 0 })}
                         className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                       />
                       <input
                         type="number"
-                        placeholder="재고"
-                        value={opt.stock ?? 0}
-                        onChange={(e) => updateOption(idx, { stock: Number(e.target.value) || 0 })}
+                        min={0}
+                        placeholder="추가금(원)"
+                        value={opt.extraPrice ?? 0}
+                        onChange={(e) => updateOption(idx, { extraPrice: Number(e.target.value) || 0 })}
                         className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                       />
                       <div className="flex items-center justify-end">
@@ -896,24 +1147,24 @@ const tagDict = useMemo(() => {
                       />
                       <input
                         type="number"
-                        placeholder="추가금(원)"
-                        value={ad.extraPrice ?? 0}
-                        onChange={(e) =>
-                          updateAddon(idx, { extraPrice: Number(e.target.value) || 0 })
-                        }
-                        className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
-                      />
-                      <input
-                        type="number"
+                        min={1}
                         placeholder="재고"
                         value={ad.stock ?? 0}
                         onChange={(e) => updateAddon(idx, { stock: Number(e.target.value) || 0 })}
                         className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                       />
+                      <input
+                        type="number"
+                        min={0}
+                        placeholder="가격(원)"
+                        value={ad.extraPrice ?? 0}
+                        onChange={(e) => updateAddon(idx, { extraPrice: Number(e.target.value) || 0 })}
+                        className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
+                      />
                       <div className="flex items-center justify-end">
                         <button
                           type="button"
-                          onClick={() => removeAddon(idx)}
+                          onClick={() => removeOption(idx)}
                           className="text-sm border rounded px-3 py-2 hover:bg-black/5"
                         >
                           삭제
@@ -931,6 +1182,9 @@ const tagDict = useMemo(() => {
                 </div>
               </>
             )}
+            <p className="inline-block text-xs text-gray-500 bg-primary-20 p-1">
+              * 옵션/추가상품 사용 시 각 항목 이름 필수, 재고 (≥ 1개), 금액 (≥ 0원)
+            </p>
           </section>
 
           <hr />
@@ -940,7 +1194,7 @@ const tagDict = useMemo(() => {
             <h3 className="text-base font-semibold">인증 / 사업자 정보</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <label className="flex items-center gap-3">
-                <span className="w-40 text-sm">법적 인증/허가 필요</span>
+                <span className="w-40 text-sm">법적 인증/허가 필요(KC)</span>
                 <input
                   type="checkbox"
                   checked={lawCertRequired}
@@ -948,49 +1202,68 @@ const tagDict = useMemo(() => {
                 />
               </label>
 
-              {lawCertRequired && (
-                <label className="md:col-span-2 flex items-center gap-3">
-                  <span className="w-40 text-sm">인증/허가 상세</span>
-                  <input
-                    value={lawCertDetail}
-                    onChange={(e) => setLawCertDetail(e.target.value)}
-                    placeholder="예: 전기용품 안전인증 번호 등"
-                    className="flex-1 rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
-                  />
-                </label>
-              )}
+              {/* 사업자 정보 7개 필드 + API 불러오기 */}
+              <div className="md:col-span-3">
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="w-40 text-sm">사업자 정보</span>
+                  <button
+                    type="button"
+                    onClick={handleFetchArtistBizInfo}
+                    className="shrink-0 text-sm border rounded px-3 py-2 hover:bg-black/5 disabled:opacity-60"
+                    disabled={bizLoading}
+                  >
+                    {bizLoading ? '불러오는 중…' : '불러오기'}
+                  </button>
+                </div>
 
-              <div className="md:col-span-3 flex items-center gap-3">
-                <span className="w-40 text-sm">사업자 정보</span>
-                <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <input
-                    value={bizInfo.companyName}
-                    onChange={(e) => setBizInfo({ ...bizInfo, companyName: e.target.value })}
-                    placeholder="상호"
+                    value={bizInfo.businessName}
+                    onChange={(e) => setBizInfo({ ...bizInfo, businessName: e.target.value })}
+                    placeholder="제조자"
                     className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                   />
                   <input
-                    value={bizInfo.bizNumber}
-                    onChange={(e) => setBizInfo({ ...bizInfo, bizNumber: e.target.value })}
-                    placeholder="사업자등록번호"
+                    value={bizInfo.businessNumber}
+                    onChange={(e) => setBizInfo({ ...bizInfo, businessNumber: e.target.value })}
+                    placeholder="사업자 등록 번호 (예: 123-45-67890)"
                     className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                   />
                   <input
-                    value={bizInfo.ceoName}
-                    onChange={(e) => setBizInfo({ ...bizInfo, ceoName: e.target.value })}
+                    value={bizInfo.ownerName}
+                    onChange={(e) => setBizInfo({ ...bizInfo, ownerName: e.target.value })}
                     placeholder="대표자명"
                     className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                   />
+                  <input
+                    value={bizInfo.asManager}
+                    onChange={(e) => setBizInfo({ ...bizInfo, asManager: e.target.value })}
+                    placeholder="A/S 책임자 / 전화번호"
+                    className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
+                  />
+                  <input
+                    type="email"
+                    value={bizInfo.email}
+                    onChange={(e) => setBizInfo({ ...bizInfo, email: e.target.value })}
+                    placeholder="전자우편주소"
+                    className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
+                  />
+                  <input
+                    value={bizInfo.businessAddress}
+                    onChange={(e) => setBizInfo({ ...bizInfo, businessAddress: e.target.value })}
+                    placeholder="사업장 소재지"
+                    className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
+                  />
+                  <input
+                    value={bizInfo.telecomSalesNumber}
+                    onChange={(e) => setBizInfo({ ...bizInfo, telecomSalesNumber: e.target.value })}
+                    placeholder="통신 판매업 신고 번호"
+                    className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm md:col-span-2"
+                  />
                 </div>
-                {onLoadBizFromProfile && (
-                  <button
-                    type="button"
-                    onClick={handleLoadBizFromProfile}
-                    className="shrink-0 text-sm border rounded px-3 py-2 hover:bg-black/5"
-                  >
-                    불러오기
-                  </button>
-                )}
+                <p className="inline-block text-xs text-gray-500 bg-primary-20 p-1 mt-2">
+                  * 작가 프로필의 사업자 정보(제조자, 사업자등록번호, 대표자명, A/S 책임자/전화번호, 이메일, 사업장 소재지, 통신판매업 신고번호)를 불러와 편집할 수 있습니다.
+                </p>
               </div>
             </div>
           </section>
@@ -999,15 +1272,83 @@ const tagDict = useMemo(() => {
 
           {/* 내용(에디터) */}
           <section className="space-y-2">
-            <span className="text-sm">내용</span>
-            <NoticeEditor
-              value={editorValue}
-              onChange={setEditorValue}
-              onUploadImage={async (file) => URL.createObjectURL(file)}
-              minHeight={120}
-              maxHeight={180}
-            />
+            <div className="flex items-center justify-between">
+              <span className="text-sm">상품 설명</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="text-xs border rounded px-2 py-1 hover:bg-black/5"
+                  onClick={() => setEditorFullscreen(true)}
+                >
+                  상품 설명 크게 보기
+                </button>
+              </div>
+            </div>
+
+            {/* 작은 뷰(기본) - 더블클릭으로도 확대 */}
+            <div onDoubleClick={() => setEditorFullscreen(true)}>
+              <NoticeEditor
+                value={editorValue}
+                onChange={setEditorValue}
+                onUploadImage={handleUploadDescImage}
+                minHeight={180}
+                maxHeight={240}
+              />
+            </div>
+
+            <p className="inline-block text-xs text-gray-500 bg-primary-20 p-1">
+              * 상품 상세 설명은 필수입니다. (더블클릭 또는 ‘상품 설명 크게 보기’로 확대)
+            </p>
           </section>
+
+          {/* 상품 설명 크게 보기 에디터 */}
+          {editorFullscreen && (
+            <div
+              className="fixed inset-0 z-[1000] bg-black/60 flex items-center justify-center"
+              onClick={() => setEditorFullscreen(false)} // 바깥 클릭 시 닫힘
+            >
+              <div
+                className="bg-white rounded-xl shadow-2xl w-[min(1200px,95vw)] h-[85vh] flex flex-col"
+                onClick={(e) => e.stopPropagation()} // 내부 클릭 전파 막기
+              >
+                {/* 상단 바 */}
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+                  <div className="text-sm font-semibold">상품 설명</div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      className="cursor-pointer rounded transition hover:bg-black/5 p-2"
+                      onClick={() => setEditorFullscreen(false)}
+                      aria-label="닫기"
+                    >
+                      <X width={16} height={16} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* 큰 에디터 */}
+                <div className="flex-1 overflow-hidden p-4">
+                  <NoticeEditor
+                    value={editorValue}
+                    onChange={setEditorValue}
+                    onUploadImage={handleUploadDescImage}
+                    minHeight={window?.innerHeight ? Math.max(480, Math.floor(window.innerHeight * 0.6)) : 480}
+                    maxHeight={window?.innerHeight ? Math.floor(window.innerHeight * 0.8) : 700}
+                  />
+                </div>
+
+                {/* 하단 바 */}
+                <div className="px-4 py-3 border-t border-gray-200 flex justify-end">
+                  <button
+                    type="button"
+                    className="text-sm border rounded px-3 py-2 hover:bg-black/5"
+                    onClick={() => setEditorFullscreen(false)}
+                  >
+                    저장
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* 첨부파일 */}
           <section className="space-y-2">
@@ -1083,9 +1424,7 @@ const tagDict = useMemo(() => {
                           draggable={false}
                         />
                       ) : (
-                        <span className="text-[10px] text-gray-500 px-1 text-center leading-tight">
-                          미리보기 없음
-                        </span>
+                        <span className="text-[10px] text-gray-500 px-1 text-center leading-tight">미리보기 없음</span>
                       )}
                     </div>
 
@@ -1116,6 +1455,7 @@ const tagDict = useMemo(() => {
                   업로드
                 </button>
               </div>
+              <p className="inline-block text-xs text-gray-500 bg-primary-20 p-1 my-2">* 이미지는 최소 1개 이상 업로드해주세요.</p>
             </div>
           )}
         </div>
@@ -1123,7 +1463,7 @@ const tagDict = useMemo(() => {
         {/* 푸터 */}
         <hr />
         <div className="sticky bottom-0 z-10 bg-white px-6 py-4 flex justify-between gap-2">
-          <div className="flex gap-2">
+          <div className="flex ml-auto gap-2">
             <button
               onClick={handleCloseWithSave}
               className="px-3 py-2 rounded-md border border-primary text-primary font-semibold text-sm cursor-pointer"
@@ -1134,15 +1474,17 @@ const tagDict = useMemo(() => {
               <button
                 onClick={handleUpdate}
                 className="px-3 py-2 rounded-md border border-primary bg-primary text-white font-semibold text-sm cursor-pointer"
+                disabled={submitting}
               >
-                수정하기
+                {submitting ? '수정중…' : '수정하기'}
               </button>
             ) : (
               <button
                 onClick={handleCreate}
                 className="px-3 py-2 rounded-md border border-primary bg-primary text-white font-semibold text-sm cursor-pointer"
+                disabled={submitting}
               >
-                작성하기
+                {submitting ? '작성중…' : '작성하기'}
               </button>
             )}
           </div>
@@ -1151,4 +1493,3 @@ const tagDict = useMemo(() => {
     </div>
   );
 }
-

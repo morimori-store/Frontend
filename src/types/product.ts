@@ -116,7 +116,7 @@ export type ProductCreatePayload = {
   tags: TagUI[];
   options: ProductOptionUI[];
   addons: ProductAddonUI[];
-  lawCert: { required: boolean; detail?: string };
+  certification:boolean;
   bizInfo?: { companyName?: string; bizNumber?: string; ceoName?: string }; // 서버 전송 X
   description: string;
   attachments?: File[]; // 서버 전송 X
