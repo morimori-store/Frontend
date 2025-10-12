@@ -2,7 +2,7 @@
 import Button from '@/components/Button';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useToast } from '@/components/ToastProvider';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { login } from '@/services/auth';
@@ -35,7 +35,7 @@ const SOCIAL_LABELS: Record<SocialProvider, string> = {
 
 const SOCIAL_PROVIDER_ORDER: SocialProvider[] = ['google', 'naver', 'kakao'];
 
-export default function LoginCard() {
+function LoginCardContent() {
   const [selected, setSelected] = useState<'normal' | 'artist'>('normal');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -233,5 +233,13 @@ export default function LoginCard() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginCard() {
+  return (
+    <Suspense fallback={null}>
+      <LoginCardContent />
+    </Suspense>
   );
 }
