@@ -49,7 +49,7 @@ export default function CommunitySection({
   };
 
   return (
-    <div className="max-w-2xl mx-auto min-h-screen">
+    <div className="max-w-2xl mx-auto">
       <div className="p-4 space-y-4">
         {communities.length === 0 ? (
           <div className="text-center text-gray-500 py-8">
