@@ -99,9 +99,10 @@ export interface CreateFundingRequest {
   categoryId: number;
   imageUrl: string;
   targetAmount: number;
+  price: number;
+  stock: number;
   startDate: string; // ISO 8601 형식
   endDate: string; // ISO 8601 형식
-  options: CreateFundingOptionRequest[];
 }
 
 // 펀딩 생성 응답 데이터
