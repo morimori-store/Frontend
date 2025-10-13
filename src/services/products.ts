@@ -1,6 +1,6 @@
 'use client';
 
-import type { ApiResponse, ProductCreateDto, ProductListData, ProductListParams, UploadedImageInfo, UploadType } from '@/types/product';
+import type { ApiResponse, ProductCreateDto, ProductListData, ProductListItem, ProductListParams, UploadedImageInfo, UploadType } from '@/types/product';
 
 // 서버 엔티티 기준 정규화
 function normalizePayload(p: ProductCreateDto): ProductCreateDto {
@@ -19,6 +19,30 @@ function normalizePayload(p: ProductCreateDto): ProductCreateDto {
     images: p.images ?? [],
   };
 }
+
+// 공용 목록 읽기용 kind (프리셋 엔드포인트 대응)
+export type ProductKind =
+  | 'all'
+  | 'upcoming'
+  | 'restock'
+  | 'planned'
+  | 'onsale'
+  | 'new'
+  | 'low-stock';
+
+// 프리셋 엔드포인트 매핑
+function resolveProductPath(kind: ProductKind) {
+  switch (kind) {
+    case 'all':       return '/api/products';
+    case 'upcoming':  return '/api/products/upcoming';
+    case 'restock':   return '/api/products/restock';
+    case 'planned':   return '/api/products/planned';
+    case 'onsale':    return '/api/products/onsale';
+    case 'new':       return '/api/products/new';
+    case 'low-stock': return '/api/products/low-stock';
+  }
+}
+
 
 // tagIds(tagIds=1&tagIds=2...) 
 function buildProductListQuery(params: ProductListParams) {
@@ -311,7 +335,7 @@ export async function fetchArtistProducts(params: ArtistProductListParams = {}):
   } = params;
 
   const sp = new URLSearchParams();
-  sp.set('page', String(page));     // 0-based 주의
+  sp.set('page', String(page));     // 0-based
   sp.set('size', String(size));
   if (keyword) sp.set('keyword', keyword);
   if (typeof selling === 'boolean') sp.set('selling', String(selling));
@@ -340,5 +364,141 @@ export async function fetchArtistProducts(params: ArtistProductListParams = {}):
   }
   return json.data;
 }
+
+// 안전한 JSON 파싱 
+async function safeParseJson<T>(res: Response): Promise<T | null> {
+  const text = await res.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return null;
+  }
+}
+
+// /api/products  전용 쿼리스트링 — UI 0-base → 서버 1-base 변환
+function buildAllListQuery(params?: ProductListParams) {
+  if (!params) return '';
+  const sp = new URLSearchParams();
+
+  const set = (k: string, v?: string | number | boolean | null) => {
+    if (v === undefined || v === null) return;
+    sp.set(k, String(v));
+  };
+
+  set('categoryId', params.categoryId);
+  set('minPrice', params.minPrice);
+  set('maxPrice', params.maxPrice);
+  set('deliveryType', params.deliveryType);
+  set('sort', params.sort ?? 'newest');
+  set('page', (params.page ?? 0) + 1); // 서버 1-base로 변환
+  set('size', params.size ?? 12);
+
+  (params.tagIds ?? []).forEach((id) => sp.append('tagIds', String(id)));
+
+  const qs = sp.toString();
+  return qs ? `?${qs}` : '';
+}
+
+// 서버 응답(여러 스키마)을 UI 기준 ProductListData로 정규화 
+function normalizeProductsPaged(input: unknown, fallbackSize: number): ProductListData {
+  const empty: ProductListData = {
+    page: 0,
+    size: fallbackSize,
+    totalElements: 0,
+    totalPages: 0,
+    products: [],
+  };
+  if (input == null) return empty;
+
+  // 케이스 A) 정식 목록 API: ApiResponse<ProductListResponse>
+  // ProductListResponse: { page(1-base), size, totalElements, totalPages, products: [...] }
+  const asApi = input as ApiResponse<{
+    page: number;       // 1-base
+    size: number;
+    totalElements: number;
+    totalPages: number;
+    products: Array<{
+      productUuid: string;
+      url: string;
+      brandName: string;
+      name: string;
+      price: number;
+      discountRate: number;
+      discountPrice: number;
+      rating: number | null;
+    }>;
+  }>;
+
+  if (asApi && typeof asApi === 'object' && 'data' in asApi) {
+    const d = asApi.data;
+    if (d && Array.isArray(d.products)) {
+      return {
+        page: Math.max(0, (d.page ?? 1) - 1), // 1-base → 0-base
+        size: d.size ?? fallbackSize,
+        totalElements: d.totalElements ?? 0,
+        totalPages: d.totalPages ?? 0,
+        products: d.products.map((p) => ({
+          productUuid: p.productUuid,
+          url: p.url,
+          brandName: p.brandName,
+          name: p.name,
+          price: p.price,
+          discountRate: p.discountRate,
+          discountPrice: p.discountPrice,
+          rating: p.rating ?? null,
+        })),
+      };
+    }
+  }
+
+  // 케이스 B) 프리셋 API(/new, /onsale ...): { code?, message?, data: ProductListItem[] }
+  const asArrayEnvelope = input as { data?: unknown };
+  if (asArrayEnvelope && Array.isArray(asArrayEnvelope.data)) {
+    const list = asArrayEnvelope.data as ProductListItem[];
+    const total = list.length;
+    return {
+      page: 0,
+      size: Math.max(fallbackSize, total),
+      totalElements: total,
+      totalPages: total ? 1 : 0,
+      products: list,
+    };
+  }
+
+  return empty;
+}
+
+// 상품 목록  (UI 0-base page)
+export async function fetchProductList(kind: ProductKind, params?: ProductListParams): Promise<ProductListData> {
+  const base = (process.env.NEXT_PUBLIC_API_BASE_URL ?? '') + resolveProductPath(kind);
+  const url = kind === 'all' ? base + buildAllListQuery(params) : base;
+
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: { accept: 'application/json' },
+      cache: 'no-store',
+      credentials: 'include',
+    });
+
+    const parsed = await safeParseJson<unknown>(res);
+
+    if (res.status === 404) {
+      return normalizeProductsPaged(parsed, params?.size ?? 12);
+    }
+
+    if (!res.ok) {
+      console.error('[fetchProductList] FAIL', { url, status: res.status, parsed });
+      return normalizeProductsPaged(parsed, params?.size ?? 12);
+    }
+
+    return normalizeProductsPaged(parsed, params?.size ?? 12);
+  } catch (e) {
+    console.error('[fetchProductList] EXCEPTION', e);
+    return { page: 0, size: params?.size ?? 12, totalElements: 0, totalPages: 0, products: [] };
+  }
+}
+
 
 

@@ -1,3 +1,48 @@
+
+// 공통
+export type ApiResponse<T> = {
+  resultCode: '200' | string;
+  msg: string;
+  data: T | null;
+};
+
+// 상품 목록
+export type DeliveryType = 'FREE' | 'PAID' | 'CONDITIONAL_FREE';
+export type SortKey = 'newest' | 'priceAsc' | 'priceDesc' | 'popular';
+
+export type ProductListItem = {
+  productUuid: string;
+  url: string;
+  brandName: string;
+  name: string;
+  price: number;
+  discountRate: number;
+  discountPrice: number;
+  rating: number | null;
+};
+
+export type ProductListData = {
+  page: number;          // 0-base (UI 기준)
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  products: ProductListItem[];
+};
+
+export type ProductListParams = {
+  categoryId?: number;
+  tagIds?: number[];
+  minPrice?: number;
+  maxPrice?: number;
+  deliveryType?: DeliveryType;
+  sort?: SortKey;
+  page?: number; // 0-base (UI에서 0,1,2...) — 서버에는 1로 변환되어 나감
+  size?: number;
+};
+
+//
+
+
 // 공통 업로드 타입
 export type UploadType = 'MAIN' | 'ADDITIONAL' | 'THUMBNAIL' | 'DOCUMENT';
 
@@ -77,12 +122,7 @@ export type ProductCreateDto = {
   size: string;
 };
 
-// 공통 래퍼
-export type ApiResponse<T> = {
-  resultCode: string;
-  msg: string;
-  data: T;
-};
+
 
 // UI 타입
 export type ShippingTypeUI = 'FREE' | 'PAID' | 'CONDITIONAL';
@@ -125,36 +165,6 @@ export type ProductCreatePayload = {
 // 태그
 export type TagDict = Record<string, number>;
 
-// 상품 목록
-// /api/products (페이지형)
-export type ProductListItem = {
-  productUuid: string;
-  url: string;          // 썸네일/대표 이미지
-  brandName: string;
-  name: string;
-  price: number | null;
-  discountRate: number;
-  discountPrice: number;
-  rating: number;
-};
 
-// 페이지 컨테이너
-export type ProductListData = {
-  page: number;
-  size: number;
-  totalElements: number;
-  totalPages: number;
-  products: ProductListItem[];
-};
 
-// 쿼리 파라미터
-export type ProductListParams = {
-  categoryId?: number;
-  tagIds?: number[]; // tagIds=1&tagIds=2
-  minPrice?: number;
-  maxPrice?: number;
-  deliveryType?: 'PAID' | 'FREE' | 'CONDITIONAL';
-  sort?: 'newest' | 'priceAsc' | 'priceDesc' | 'popular';
-  page?: number; // UI 기준 0부터 (서버 전송 시 +1)
-  size?: number; // 기본 10 
-};
+

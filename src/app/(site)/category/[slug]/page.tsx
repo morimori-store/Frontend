@@ -1,4 +1,3 @@
-
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 
@@ -6,11 +5,11 @@ import CategoryBtn from '@/components/mainCategory/CategoryBtn';
 import FilteredSection from '@/components/mainCategory/FilteredSection';
 import ProductSlider from '@/components/main/ProductSlider.client';
 
-import { fetchProductList } from '@/lib/server/products.client';
 import { fetchCategoriesServer } from '@/lib/server/categories.server';
 import type { Category } from '@/types/category';
 import { buildCategoryPath, parseCategoryParamToId } from '@/utils/slug';
 import CategorySideBarClient from '@/components/CategorySideBar/Sidebar.client';
+import { fetchProductListServer } from '@/lib/server/products.server';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -32,7 +31,7 @@ type SearchParams = {
   maxPrice?: string;
   deliveryType?: 'FREE' | 'PAID' | 'CONDITIONAL';
   sort?: 'newest' | 'priceAsc' | 'priceDesc' | 'popular';
-  page?: string;
+  page?: string; // 1-base in URL
   size?: string;
   categoryId?: string;
 };
@@ -104,28 +103,28 @@ export default async function CategoryPage({
     sp.categoryId && Number(sp.categoryId) ? Number(sp.categoryId) : current.id;
   const subCategories = current.subCategories ?? [];
 
-  // 페이지/사이즈 (최소 1)
-  const page1 = Math.max(1, toInt(sp.page ?? 1, 1));
-  const size1 = Math.max(1, toInt(sp.size ?? 12, 12));
+  // URL의 page는 1-base → 서비스는 0-base
+  const page0 = Math.max(0, toInt(sp.page ?? 1, 1) - 1);
+  const size = Math.max(1, toInt(sp.size ?? 12, 12));
 
-  // BEST
-  const bestData = await fetchProductList({
+  // BEST (인기순 상위 8) — kind 명시 + 0-base
+  const bestData = await fetchProductListServer('all', {
     categoryId: selectedCategoryId,
     sort: 'popular',
-    page: 1,
+    page: 0,
     size: 8,
   });
 
-  // 리스트 
-  const listData = await fetchProductList({
+  // 리스트 — kind 명시 + 0-base 페이지
+  const listData = await fetchProductListServer('all', {
     categoryId: selectedCategoryId,
     tagIds: parseTagIds(sp.tagIds),
     minPrice: sp.minPrice ? Number(sp.minPrice) : undefined,
     maxPrice: sp.maxPrice ? Number(sp.maxPrice) : undefined,
     deliveryType: normalizeDeliveryType(sp.deliveryType),
     sort: sp.sort ?? 'newest',
-    page: page1,
-    size: size1,
+    page: page0,
+    size,
   });
 
   const toUI = (p: ApiProductListItem) => ({

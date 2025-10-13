@@ -7,7 +7,7 @@ import ProductSection, {
   OnSaleProductsSection,
   NewProductsSection,
   LowStockProductsSection,
-} from '@/components/main/ProductSection.server';
+} from '@/components/main/ProductSection';
 
 export default async function Home() {
   return (
