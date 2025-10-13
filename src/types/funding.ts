@@ -149,14 +149,6 @@ export interface FundingNews {
   createDate: string;
 }
 
-export interface FundingCommunity {
-  id: number;
-  writerName: string;
-  profileImageUrl: string;
-  content: string;
-  createDate: string;
-}
-
 export interface FundingDetail {
   id: number;
   title: string;
@@ -183,4 +175,13 @@ export interface FundingDetailResponse {
   resultCode: string;
   msg: string;
   data: FundingDetail;
+}
+
+export interface FundingCommunity {
+  id: number;
+  writerId?: number;
+  writerName: string;
+  profileImageUrl: string;
+  content: string;
+  createDate: string;
 }
