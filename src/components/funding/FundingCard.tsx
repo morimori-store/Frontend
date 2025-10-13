@@ -34,7 +34,7 @@ function FundingCard({ data }: Props) {
               ? `D-${data.remainingDays}`
               : data.remainingDays === 0
                 ? 'D-Day'
-                : '펀딩 마감'}
+                : '펀딩 종료'}
           </p>
         </div>
       </div>
