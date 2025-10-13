@@ -14,13 +14,10 @@ const API_BASE_URL = (
 async function getFundingDetail(id: string) {
   try {
     const url = `${API_BASE_URL}/api/fundings/${id}`;
-    console.log('📤 API 호출:', url);
 
     const response = await fetch(url, {
       cache: 'no-store',
     });
-
-    console.log('📥 응답 상태:', response.status);
 
     if (!response.ok) {
       console.error('❌ 응답 실패:', response.status, response.statusText);
@@ -28,8 +25,6 @@ async function getFundingDetail(id: string) {
     }
 
     const data: FundingDetailResponse = await response.json();
-    console.log('✅ 받은 데이터:', data);
-    console.log('resultCode:', data.resultCode);
 
     return data.data;
   } catch (error) {
@@ -58,7 +53,6 @@ async function getCurrentUser() {
     }
 
     const data = await response.json();
-    console.log('👤 현재 사용자:', data);
     return data.data;
   } catch (error) {
     console.error('❌ 사용자 정보 조회 실패:', error);
@@ -74,15 +68,11 @@ export default async function FundingDetailPage({
   params,
 }: FundingDetailPageProps) {
   const resolvedParams = await params;
-  console.log('🔍 펀딩 ID:', resolvedParams.id);
 
   const [funding, currentUser] = await Promise.all([
     getFundingDetail(resolvedParams.id),
     getCurrentUser(),
   ]);
-
-  console.log('📦 최종 펀딩 데이터:', funding);
-  console.log('👤 현재 사용자:', currentUser);
 
   if (!funding) {
     console.error('❌ 펀딩 데이터 없음 - not-found 표시');
@@ -90,9 +80,6 @@ export default async function FundingDetailPage({
   }
 
   const currentUserId = currentUser?.userId;
-
-  console.log('👤 현재 사용자 ID:', currentUserId);
-  console.log('🎨 작가 ID:', funding.author.id);
 
   // 이미지 배열 구성
   const productImages = [

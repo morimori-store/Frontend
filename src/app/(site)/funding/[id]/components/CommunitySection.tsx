@@ -30,12 +30,6 @@ export default function CommunitySection({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  console.log('=== 커뮤니티 데이터 확인 ===');
-  console.log('전체 communities:', initialCommunities);
-  console.log('첫 번째 댓글:', initialCommunities[0]);
-  console.log('authorId:', authorId);
-  console.log('currentUserId:', currentUserId);
-
   const handleSendMessage = async () => {
     if (!newMessage.trim()) {
       alert('댓글 내용을 입력해주세요.');
@@ -69,7 +63,6 @@ export default function CommunitySection({
       }
 
       const result = await response.json();
-      console.log('댓글 등록 성공:', result);
 
       // 새로고침 대신 상태 업데이트
       const newCommunity: FundingCommunity = {
