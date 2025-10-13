@@ -4,7 +4,6 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import NewsInputModal from '@/components/funding/NewsInputModal';
-import FullThumbsUp from '@/assets/icon/thumbs_up.svg';
 import { FundingNews } from '@/types/funding';
 
 interface NewsSectionProps {
@@ -84,10 +83,6 @@ export default function NewsSection({ fundingId, news }: NewsSectionProps) {
                 )}
 
                 <div className="flex items-center">
-                  <button className="flex items-center space-x-2 text-primary hover:text-primary-60 w-9 h-9">
-                    <FullThumbsUp className="w-5 h-5" />
-                    <span className="text-sm font-semibold">0</span>
-                  </button>
                   {item.content.length > 100 && (
                     <button
                       onClick={() => toggleNews(item.id)}

@@ -58,9 +58,9 @@ export default async function FundingDetailPage({
   // 이미지 배열 구성
   const productImages = [
     funding.imageUrl,
-    '/productImages/funding1.png',
-    '/productImages/funding2.png',
-    '/productImages/funding3.png',
+    // '/productImages/funding1.png',
+    // '/productImages/funding2.png',
+    // '/productImages/funding3.png',
   ];
 
   return (
@@ -73,9 +73,9 @@ export default async function FundingDetailPage({
             id={funding.id}
             title={funding.title}
             category={funding.categoryName}
-            price={funding.price} // 추가
-            stock={funding.stock} // 추가
-            soldCount={funding.soldCount} // 추가
+            price={funding.price}
+            stock={funding.stock}
+            soldCount={funding.soldCount}
             currentAmount={funding.currentAmount}
             targetAmount={funding.targetAmount}
             remainingDays={funding.remainingDays}
