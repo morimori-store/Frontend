@@ -1,7 +1,5 @@
 import {
   FundingListProps,
-  FundingItem,
-  FundingListData,
   CreateFundingRequest,
   CreateFundingResponse,
   FundingListResponse,
@@ -11,7 +9,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
 
 export const fetchFundingList = async (
   params: FundingListProps,
-): Promise<FundingItem[]> => {
+): Promise<FundingListResponse> => {
   try {
     const searchParams = new URLSearchParams();
     // status는 배열이므로 쉼표로 조인
@@ -53,23 +51,16 @@ export const fetchFundingList = async (
     });
 
     if (!response.ok) {
-      throw new Error(
-        `API 요청 실패: ${response.status} ${response.statusText}`,
-      );
+      throw new Error(`API 요청 실패: ${response.status}`);
     }
 
-    const data: FundingListResponse = await response.json();
-    console.log(data);
+    const apiResponse: FundingListResponse = await response.json();
 
-    return data.data.content;
+    // ⭐ 전체 응답 반환
+    return apiResponse;
   } catch (error) {
-    if (error instanceof Error) {
-      console.error('펀딩 리스트 조회 실패:', error.message);
-      throw error;
-    }
-
-    console.error('알 수 없는 에러 발생:', error);
-    throw new Error('펀딩 리스트를 불러오는 중 문제가 발생했습니다.');
+    console.error('펀딩 리스트 조회 실패:', error);
+    throw error;
   }
 };
 

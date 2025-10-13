@@ -3,15 +3,15 @@
 
 import { useState } from 'react';
 import FundingCard from '@/components/funding/FundingCard';
-import { Funding } from '../../../../types/funding';
+import { FundingItem } from '../../../../types/funding';
 
 interface PopularFundingSliderProps {
-  fundings: Funding[];
+  fundings: FundingItem[];
 }
 
 export function PopularFundingSlider({ fundings }: PopularFundingSliderProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
-  if (!fundings) return <p>펀딩이 없습니다.</p>;
+  if (!fundings) return <p>해당하는 펀딩이 없습니다.</p>;
   const itemsPerPage = 4;
   const totalPages = Math.ceil(fundings.length / itemsPerPage);
 

@@ -9,7 +9,7 @@ export function FilterSidebar() {
 
   // 현재 선택된 값들 가져오기
   const currentStatuses = searchParams.get('status')?.split(',') || [];
-  const currentPriceRange = searchParams.get('priceRange') || '';
+  const currentPriceRanges = searchParams.get('priceRange')?.split(',') || [];
 
   const toggleStatus = (status: string) => {
     const params = new URLSearchParams(searchParams);
@@ -34,38 +34,58 @@ export function FilterSidebar() {
     router.push(`/funding?${params.toString()}`);
   };
 
-  const selectPriceRange = (priceId: string) => {
+  const togglePriceRange = (priceId: string) => {
     const params = new URLSearchParams(searchParams);
 
-    // 가격 범위를 minPrice, maxPrice로 변환
+    let priceRanges =
+      params.get('priceRange')?.split(',').filter(Boolean) || [];
+
+    // 토글
+    if (priceRanges.includes(priceId)) {
+      priceRanges = priceRanges.filter((p) => p !== priceId);
+    } else {
+      priceRanges.push(priceId);
+    }
+
+    // priceRange 업데이트
+    if (priceRanges.length > 0) {
+      params.set('priceRange', priceRanges.join(','));
+    } else {
+      params.delete('priceRange');
+    }
+
+    // ⭐ minPrice, maxPrice 계산
     params.delete('minPrice');
     params.delete('maxPrice');
 
-    switch (priceId) {
-      case 'under10k':
-        params.set('maxPrice', '10000');
-        break;
-      case '10k-30k':
-        params.set('minPrice', '10000');
-        params.set('maxPrice', '30000');
-        break;
-      case '30k-50k':
-        params.set('minPrice', '30000');
-        params.set('maxPrice', '50000');
-        break;
-      case 'over50k':
-        params.set('minPrice', '50000');
-        break;
-      case 'all':
-        // 전체 선택 시 minPrice, maxPrice 제거
-        break;
-    }
+    if (priceRanges.length > 0) {
+      const prices = priceRanges.map((id) => {
+        switch (id) {
+          case 'under10k':
+            return { min: 0, max: 10000 };
+          case '10k-30k':
+            return { min: 10000, max: 30000 };
+          case '30k-50k':
+            return { min: 30000, max: 50000 };
+          case 'over50k':
+            return { min: 50000, max: Infinity };
+          default:
+            return { min: 0, max: Infinity };
+        }
+      });
 
-    // priceRange는 UI 표시용으로만 저장 (선택적)
-    if (priceId === 'all') {
-      params.delete('priceRange');
-    } else {
-      params.set('priceRange', priceId);
+      // 최소값과 최대값 계산
+      const minPrice = Math.min(...prices.map((p) => p.min));
+      const maxPrice = Math.max(
+        ...prices.map((p) => (p.max === Infinity ? 0 : p.max)),
+      );
+
+      if (minPrice > 0) {
+        params.set('minPrice', String(minPrice));
+      }
+      if (maxPrice > 0 && maxPrice !== Infinity) {
+        params.set('maxPrice', String(maxPrice));
+      }
     }
 
     params.set('page', '0');
@@ -100,20 +120,10 @@ export function FilterSidebar() {
           </div>
         </div>
 
-        {/* 가격대 - 하나만 선택 가능 (radio) */}
+        {/* ⭐ 가격대 - 여러 개 선택 가능 (checkbox) */}
         <div>
           <h2 className="font-bold text-[18px] mb-3">가격대</h2>
           <div className="space-y-2">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="priceRange"
-                className="w-4 h-4"
-                checked={currentPriceRange === ''}
-                onChange={() => selectPriceRange('all')}
-              />
-              <span className="text-sm">전체</span>
-            </label>
             {[
               { id: 'under10k', label: '10,000원 이하' },
               { id: '10k-30k', label: '10,000~30,000원' },
@@ -125,11 +135,10 @@ export function FilterSidebar() {
                 className="flex items-center gap-2 cursor-pointer"
               >
                 <input
-                  type="radio"
-                  name="priceRange"
+                  type="checkbox"
                   className="w-4 h-4"
-                  checked={currentPriceRange === price.id}
-                  onChange={() => selectPriceRange(price.id)}
+                  checked={currentPriceRanges.includes(price.id)}
+                  onChange={() => togglePriceRange(price.id)}
                 />
                 <span className="text-sm">{price.label}</span>
               </label>
