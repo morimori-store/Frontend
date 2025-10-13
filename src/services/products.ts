@@ -100,10 +100,13 @@ export async function uploadDescriptionImages(files: File[]): Promise<string[]> 
     throw new Error(msg);
   }
 
-  const json = await res.json();
-  const urls: string[] = (json?.data ?? [])
-    .map((x: any) => x?.fileUrl)
-    .filter(Boolean);
+
+  type DescriptionUploadResponse = ApiResponse<Array<{ fileUrl: string }>>;
+  const json = (await res.json()) as DescriptionUploadResponse;
+  const urls: string[] =
+    (json?.data ?? [])
+      .map((item) => item.fileUrl)
+      .filter((u): u is string => typeof u === 'string' && u.length > 0);
 
   if (!urls.length) throw new Error('설명 이미지 업로드 결과가 비어 있습니다.');
   return urls;

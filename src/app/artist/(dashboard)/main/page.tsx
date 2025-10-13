@@ -8,8 +8,14 @@ import TrendChart from '@/components/admin/TrendChart';
 import CategoryPieChart from '@/components/admin/CategoryPieChart';
 
 import { fetchArtistMain } from '@/services/artistDashboard';
-import { ArtistMainParams, ArtistMainResponseDTO } from '@/types/artistDashboard';
-
+import {
+  ArtistMainParams,
+  ArtistMainRoot,
+  ArtistMainStats,
+  ArtistMainTrends,
+  ArtistMainTrafficSources,
+  ArtistMainNotifications,
+} from '@/types/artistDashboard';
 
 // TrendChart prop: { title: string; color: string; data: {label:string,value:number}[] }
 // CategoryPieChart prop: data: { name:string; value:number; color:string }[]
@@ -27,7 +33,7 @@ type StatCards = {
   productCount: number;
 };
 
-function toStatCards(stats?: ArtistMainResponseDTO.Stats): StatCards {
+function toStatCards(stats?: ArtistMainStats): StatCards {
   return {
     followerCount: stats?.followerCount ?? 0,
     todaysSales: stats?.todaysSales ?? 0,
@@ -36,10 +42,10 @@ function toStatCards(stats?: ArtistMainResponseDTO.Stats): StatCards {
   };
 }
 
-function toTrendSeries(trends?: ArtistMainResponseDTO.Trends) {
-  const sales = (trends?.series.sales.points ?? []).map(p => ({ label: p.t, value: p.v }));
-  const orders = (trends?.series.orders.points ?? []).map(p => ({ label: p.t, value: p.v }));
-  const followers = (trends?.series.followers.points ?? []).map(p => ({ label: p.t, value: p.v }));
+function toTrendSeries(trends?: ArtistMainTrends) {
+  const sales = (trends?.series.sales.points ?? []).map((p) => ({ label: p.t, value: p.v }));
+  const orders = (trends?.series.orders.points ?? []).map((p) => ({ label: p.t, value: p.v }));
+  const followers = (trends?.series.followers.points ?? []).map((p) => ({ label: p.t, value: p.v }));
 
   return {
     sales,
@@ -48,8 +54,8 @@ function toTrendSeries(trends?: ArtistMainResponseDTO.Trends) {
   };
 }
 
-function toPieData(traffic?: ArtistMainResponseDTO.TrafficSources) {
-  const data = (traffic?.chart.data ?? []).map(d => ({
+function toPieData(traffic?: ArtistMainTrafficSources) {
+  const data = (traffic?.chart.data ?? []).map((d) => ({
     name: d.name,
     value: d.value,
     color: d.color || '#cccccc',
@@ -57,7 +63,7 @@ function toPieData(traffic?: ArtistMainResponseDTO.TrafficSources) {
   return data;
 }
 
-function toNotificationsList(n?: ArtistMainResponseDTO.Notifications) {
+function toNotificationsList(n?: ArtistMainNotifications) {
   return {
     order: n?.orderAlerts ?? [],
     funding: n?.fundingAlerts ?? [],
@@ -71,7 +77,7 @@ export default function Page() {
   const [loading, setLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<ArtistMainResponseDTO.Root | null>(null);
+  const [data, setData] = useState<ArtistMainRoot | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -88,16 +94,19 @@ export default function Page() {
           setNotFound(false);
           setData(res.data);
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!alive) return;
-        setError(e?.message ?? '메인 현황 조회 실패');
+        const msg = e instanceof Error ? e.message : '메인 현황 조회 실패';
+        setError(msg);
         setNotFound(false);
         setData(null);
       } finally {
         if (alive) setLoading(false);
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [params]);
 
   // 뷰 모델
@@ -132,30 +141,22 @@ export default function Page() {
         <div className="grid w-full grid-cols-1 gap-[30px] sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           <div className="flex items-center justify-between rounded-2xl border border-[var(--color-primary)] px-[23px] py-[14px]">
             <h2 className="text-xl font-bold">👥 팔로워 수</h2>
-            <p className="text-lg font-medium">
-              {statsVM.followerCount.toLocaleString()}명
-            </p>
+            <p className="text-lg font-medium">{statsVM.followerCount.toLocaleString()}명</p>
           </div>
 
           <div className="flex items-center justify-between rounded-2xl border border-[var(--color-primary)] px-[23px] py-[14px]">
             <h2 className="text-xl font-bold">💲 오늘의 매출</h2>
-            <p className="text-lg font-medium">
-              {statsVM.todaysSales.toLocaleString()}원
-            </p>
+            <p className="text-lg font-medium">{statsVM.todaysSales.toLocaleString()}원</p>
           </div>
 
           <div className="flex items-center justify-between rounded-2xl border border-[var(--color-primary)] px-[23px] py-[14px]">
             <h2 className="text-xl font-bold">🛒 오늘의 주문</h2>
-            <p className="text-lg font-medium">
-              {statsVM.todaysOrders.toLocaleString()}건
-            </p>
+            <p className="text-lg font-medium">{statsVM.todaysOrders.toLocaleString()}건</p>
           </div>
 
           <div className="flex items-center justify-between rounded-2xl border border-[var(--color-primary)] px-[23px] py-[14px]">
             <h2 className="text-xl font-bold">🎁 상품 수</h2>
-            <p className="text-lg font-medium">
-              {statsVM.productCount.toLocaleString()}개
-            </p>
+            <p className="text-lg font-medium">{statsVM.productCount.toLocaleString()}개</p>
           </div>
         </div>
       </div>

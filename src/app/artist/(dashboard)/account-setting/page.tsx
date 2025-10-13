@@ -3,9 +3,12 @@
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { fetchArtistSettings } from '@/services/artistDashboard';
-import { ArtistSettingsResponseDTO } from '@/types/artistDashboard'; 
+import {
+  ArtistSettingsRoot,
+  ArtistSettingsPayout,
+} from '@/types/artistDashboard';
 
-// 예시 은행코드 
+// 예시 은행코드
 const BANKS = [
   { code: '004', name: 'KB국민' },
   { code: '088', name: '신한' },
@@ -20,7 +23,7 @@ export default function AccountSettingPage() {
   const [loading, setLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<ArtistSettingsResponseDTO.Root | null>(null);
+  const [data, setData] = useState<ArtistSettingsRoot | null>(null);
 
   // 보기/편집 모드
   const [editing, setEditing] = useState(false);
@@ -40,7 +43,7 @@ export default function AccountSettingPage() {
   const [accountHolder, setAccountHolder] = useState('');
   const [accountMasked, setAccountMasked] = useState('');
   const [payoutStatus, setPayoutStatus] =
-    useState<ArtistSettingsResponseDTO.Payout['status']>('PENDING');
+    useState<ArtistSettingsPayout['status']>('PENDING');
 
   // 최초 로드
   useEffect(() => {
@@ -61,7 +64,7 @@ export default function AccountSettingPage() {
           // 폼 채우기
           setNickname(res.data.profile?.nickname ?? '');
           setBio(res.data.profile?.bio ?? '');
-          setSns((res.data.profile?.sns ?? []).map(s => ({ platform: s.platform, handle: s.handle })));
+          setSns((res.data.profile?.sns ?? []).map((s) => ({ platform: s.platform, handle: s.handle })));
           setProfileImageUrl(res.data.profile?.profileImageUrl ?? '');
 
           setAddress(res.data.business?.address ?? '');
@@ -72,11 +75,14 @@ export default function AccountSettingPage() {
           setBankCode(res.data.payout?.bankCode ?? '');
           setAccountHolder(res.data.payout?.accountHolder ?? '');
           setAccountMasked(res.data.payout?.accountMasked ?? '');
-          setPayoutStatus((res.data.payout?.status as any) ?? 'PENDING');
+          setPayoutStatus(
+            (res.data.payout?.status ?? 'PENDING') as ArtistSettingsPayout['status']
+          );
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!alive) return;
-        setError(e?.message ?? '작가 설정 정보 조회 실패');
+        const msg = e instanceof Error ? e.message : '작가 설정 정보 조회 실패';
+        setError(msg);
       } finally {
         if (alive) setLoading(false);
       }
@@ -109,17 +115,19 @@ export default function AccountSettingPage() {
     );
   };
 
-  const payoutStatusTone: Record<string, 'gray' | 'green' | 'red' | 'amber'> = {
+  const payoutStatusTone: Partial<
+    Record<ArtistSettingsPayout['status'], 'gray' | 'green' | 'red' | 'amber'>
+  > = {
     VERIFIED: 'green',
     PENDING: 'amber',
     REJECTED: 'red',
   };
 
   // SNS
-  const addSns = () => setSns(prev => [...prev, { platform: '', handle: '' }]);
-  const removeSns = (idx: number) => setSns(prev => prev.filter((_, i) => i !== idx));
+  const addSns = () => setSns((prev) => [...prev, { platform: '', handle: '' }]);
+  const removeSns = (idx: number) => setSns((prev) => prev.filter((_, i) => i !== idx));
   const updateSns = (idx: number, key: keyof SnsInput, val: string) =>
-    setSns(prev => prev.map((it, i) => (i === idx ? { ...it, [key]: val } : it)));
+    setSns((prev) => prev.map((it, i) => (i === idx ? { ...it, [key]: val } : it)));
 
   // 저장/취소
   const onSave = () => {
@@ -136,7 +144,7 @@ export default function AccountSettingPage() {
     if (data) {
       setNickname(data.profile?.nickname ?? '');
       setBio(data.profile?.bio ?? '');
-      setSns((data.profile?.sns ?? []).map(s => ({ platform: s.platform, handle: s.handle })));
+      setSns((data.profile?.sns ?? []).map((s) => ({ platform: s.platform, handle: s.handle })));
       setProfileImageUrl(data.profile?.profileImageUrl ?? '');
 
       setAddress(data.business?.address ?? '');
@@ -147,7 +155,9 @@ export default function AccountSettingPage() {
       setBankCode(data.payout?.bankCode ?? '');
       setAccountHolder(data.payout?.accountHolder ?? '');
       setAccountMasked(data.payout?.accountMasked ?? '');
-      setPayoutStatus((data.payout?.status as any) ?? 'PENDING');
+      setPayoutStatus(
+        (data.payout?.status ?? 'PENDING') as ArtistSettingsPayout['status']
+      );
     } else {
       // notFound면 빈 값 유지
       setNickname('');
@@ -161,7 +171,7 @@ export default function AccountSettingPage() {
       setBankCode('');
       setAccountHolder('');
       setAccountMasked('');
-      setPayoutStatus('PENDING' as any);
+      setPayoutStatus('PENDING');
     }
     setEditing(false);
   };
@@ -429,7 +439,7 @@ export default function AccountSettingPage() {
 
         {!editing ? (
           <div className="grid gap-4 md:grid-cols-2">
-            <ReadRow label="은행" value={BANKS.find(b => b.code === bankCode)?.name || ''} />
+            <ReadRow label="은행" value={BANKS.find((b) => b.code === bankCode)?.name || ''} />
             <ReadRow label="예금주명" value={accountHolder} />
             <div className="md:col-span-2">
               <ReadRow label="계좌번호(마스킹)" value={accountMasked} />
@@ -465,7 +475,7 @@ export default function AccountSettingPage() {
             </div>
 
             <div className="md:col-span-2">
-              <label className="mb-2 block text.sm font-medium">계좌번호(마스킹)</label>
+              <label className="mb-2 block text-sm font-medium">계좌번호(마스킹)</label>
               <input
                 type="text"
                 value={accountMasked}
@@ -482,20 +492,19 @@ export default function AccountSettingPage() {
       </section>
 
       {/* 하단 액션 — 보기 모드: 좌측 '작가 탈퇴', 편집 모드: 우측 '취소/저장' */}
-<div className="mt-6 flex justify-between gap-3">
-  {/* 보기 모드일 때만 표시 */}
-  {!editing ? (
-    <button
-      className="rounded-md bg-gray-400 px-6 py-3 font-medium text-white hover:bg-gray-500 disabled:opacity-50"
-      onClick={() => console.log('작가 탈퇴')}
-    >
-      작가 탈퇴
-    </button>
-  ) : (
-    <span /> // 편집 모드에서는 왼쪽 비워두기
-  )}
-
-</div>
+      <div className="mt-6 flex justify-between gap-3">
+        {/* 보기 모드일 때만 표시 */}
+        {!editing ? (
+          <button
+            className="rounded-md bg-gray-400 px-6 py-3 font-medium text-white hover:bg-gray-500 disabled:opacity-50"
+            onClick={() => console.log('작가 탈퇴')}
+          >
+            작가 탈퇴
+          </button>
+        ) : (
+          <span /> // 편집 모드에서는 왼쪽 비워두기
+        )}
+      </div>
     </div>
   );
 }

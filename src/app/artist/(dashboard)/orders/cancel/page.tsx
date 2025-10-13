@@ -68,9 +68,10 @@ export default function OrderCancelPage() {
         setRows(mapped);
         setTotalPages(Math.max(1, data.totalPages ?? 1));
         setSelectedIds([]);
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!alive) return;
-        setError(e?.message ?? '취소 요청 목록 조회 실패');
+        const msg = e instanceof Error ? e.message : '취소 요청 목록 조회 실패';
+        setError(msg);
         setRows([]);
         setTotalPages(1);
       } finally {

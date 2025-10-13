@@ -1,12 +1,12 @@
 'use client';
 
-import type { 
-  ApiResponse, ArtistOrdersParams, ArtistOrderResponseDTO,
-  ArtistCancellationParams, ArtistCancellationResponseDTO, 
-  ApiResponse as ApiRespExchange, ArtistExchangeParams, ArtistExchangeResponseDTO, 
-  ArtistMainParams,
-  ArtistMainResponseDTO,
-  ArtistSettingsResponseDTO
+import type {
+  ApiResponse,
+  ArtistMainParams,        ArtistMainRoot,
+  ArtistOrdersParams,      ArtistOrderList,
+  ArtistCancellationParams,ArtistCancellationList,
+  ArtistExchangeParams,    ArtistExchangeList,
+  ArtistSettingsRoot
 } from '@/types/artistDashboard';
 
 
@@ -37,9 +37,9 @@ export async function fetchArtistMain(params: ArtistMainParams = {}) {
 
   const text = await res.text().catch(() => '');
   // 404 포함, 항상 JSON 파싱 시도
-  let json: ApiResponse<ArtistMainResponseDTO.Root> | null = null;
+  let json: ApiResponse<ArtistMainRoot> | null = null;
   try {
-    json = text ? (JSON.parse(text) as ApiResponse<ArtistMainResponseDTO.Root>) : null;
+    json = text ? (JSON.parse(text) as ApiResponse<ArtistMainRoot>) : null;
   } catch {
   }
 
@@ -88,7 +88,7 @@ export async function fetchArtistOrders(params: ArtistOrdersParams = {}) {
   const text = await res.text().catch(() => '');
   if (!res.ok) throw new Error(text || `주문 목록 조회 실패 (HTTP ${res.status})`);
 
-  let json: ApiResponse<ArtistOrderResponseDTO.List>;
+  let json: ApiResponse<ArtistOrderList>;
   try {
     json = JSON.parse(text);
   } catch {
@@ -135,7 +135,7 @@ export async function fetchArtistCancellationRequests(
   const text = await res.text().catch(() => '');
   if (!res.ok) throw new Error(text || `취소 요청 목록 조회 실패 (HTTP ${res.status})`);
 
-  let json: ApiResponse<ArtistCancellationResponseDTO.List>;
+  let json: ApiResponse<ArtistCancellationList>;
   try {
     json = JSON.parse(text);
   } catch {
@@ -182,7 +182,7 @@ export async function fetchArtistExchangeRequests(
   const text = await res.text().catch(() => '');
   if (!res.ok) throw new Error(text || `교환 요청 목록 조회 실패 (HTTP ${res.status})`);
 
-  let json: ApiRespExchange<ArtistExchangeResponseDTO.List>;
+  let json: ApiResponse<ArtistExchangeList>;
   try {
     json = JSON.parse(text);
   } catch {
@@ -209,7 +209,7 @@ export async function fetchArtistSettings() {
   });
 
   const text = await res.text().catch(() => '');
-  let json: ApiResponse<ArtistSettingsResponseDTO.Root> | null = null;
+  let json: ApiResponse<ArtistSettingsRoot> | null = null;
   try { json = text ? JSON.parse(text) : null; } catch { /* ignore */ }
 
   if (!res.ok) {

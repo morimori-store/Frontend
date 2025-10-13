@@ -501,8 +501,9 @@ export default function ProductCreateModal({
         dedup.forEach((f) => (next[fileKey(f)] = 'done'));
         return next;
       });
-    } catch (e: any) {
-      alert(e?.message ?? '이미지 업로드 실패');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : '이미지 업로드 실패';
+      alert(msg);
 
       // 업로드 실패 
       setUploadingMap((prev) => {
@@ -532,9 +533,10 @@ export default function ProductCreateModal({
     let urls: string[] = [];
     try {
       urls = await uploadDescriptionImages(files); // S3에 모두 업로드 → URL 배열
-    } catch (e: any) {
-      alert(e?.message ?? '설명 이미지 업로드에 실패했습니다.');
-      throw e;
+    } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : '설명 이미지 업로드에 실패했습니다.';
+    alert(msg);
+    throw e;
     }
 
     if (!urls.length) throw new Error('설명 이미지 URL을 받지 못했습니다.');
@@ -709,9 +711,10 @@ export default function ProductCreateModal({
     if (status === 'done' && s3Key) {
       try {
         await deleteProductImage(s3Key);
-      } catch (e: any) {
-        alert(e?.message ?? 'S3 파일 삭제에 실패했습니다.');
-        return; // 서버 삭제 실패 시 로컬 상태는 유지
+      } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'S3 파일 삭제에 실패했습니다.';
+      alert(msg);
+      return;
       }
     }
 
@@ -768,8 +771,9 @@ export default function ProductCreateModal({
       onCreated?.({ productUuid: newUuid, payload });
       alert(`상품 등록 성공: ${newUuid}`);
       onClose();
-    } catch (e: any) {
-      alert(e?.message ?? '등록 중 오류가 발생했습니다.');
+    } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : '등록 중 오류가 발생했습니다.';
+    alert(msg);
     } finally {
       setSubmitting(false);
     }
