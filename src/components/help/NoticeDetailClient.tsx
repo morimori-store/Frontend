@@ -107,6 +107,10 @@ export default function NoticeDetailClient({ noticeId }: NoticeDetailClientProps
     );
   }
 
+  if (!notice) {
+    return null;
+  }
+
   const topRightMeta = [
     { label: '작성일자', value: formatDate(notice.createDate) },
     { label: '수정일자', value: formatDate(notice.modifyDate) },

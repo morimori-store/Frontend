@@ -4,6 +4,7 @@ type PageParams = {
   id: string;
 };
 
-export default function Page({ params }: { params: PageParams }) {
-  return <NoticeEditClient noticeId={params.id} />;
+export default async function Page({ params }: { params: Promise<PageParams> }) {
+  const { id } = await params;
+  return <NoticeEditClient noticeId={id} />;
 }
