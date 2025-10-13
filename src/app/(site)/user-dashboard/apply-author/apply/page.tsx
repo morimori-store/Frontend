@@ -223,8 +223,12 @@ function makeDocMeta(file: File | null): S3FileRequest[] {
     if (json.resultCode !== '200') throw new Error(json.msg || '작가 신청 실패');
 
     setOkId(json.data);
-  } catch (e: any) {
-    setError(e?.message ?? '신청 처리 중 오류가 발생했습니다.');
+  } catch (e: unknown) {
+  if (e instanceof Error) {
+    setError(e.message);
+  } else {
+    setError('신청 처리 중 오류가 발생했습니다.');
+  }
   } finally {
     setLoading(false);
   }

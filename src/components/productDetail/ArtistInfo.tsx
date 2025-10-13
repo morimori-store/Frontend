@@ -26,9 +26,13 @@ export default function ArtistInfo({ productUuid }: { productUuid?: string }) {
         const data = await fetchProductArtistInfo(productUuid);
         if (!active) return;
         setArtist(data);
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!active) return;
-        setError(e?.message ?? '작가 정보를 불러오지 못했습니다.');
+        if (e instanceof Error) {
+          setError(e.message);
+        } else {
+          setError('작가 정보를 불러오지 못했습니다.');
+        }
         setArtist(null);
       }
     }

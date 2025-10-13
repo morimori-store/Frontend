@@ -33,9 +33,13 @@ export default function Page() {
         const res = await fetchProductDetail(uuid);
         if (!alive) return;
         setData(res);
-      } catch (e: any) {
-        if (!alive) return;
-        setError(e?.message ?? '상품을 불러오지 못했습니다.');
+      } catch (e: unknown) {
+    if (!alive) return;
+    const msg =
+      e instanceof Error ? e.message :
+      typeof e === 'string' ? e :
+      '상품을 불러오지 못했습니다.';
+    setError(msg);
       } finally {
         if (alive) setLoading(false);
       }
