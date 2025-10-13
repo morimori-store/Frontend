@@ -40,6 +40,7 @@ export default function NoticeDetailClient({ noticeId }: NoticeDetailClientProps
   const router = useRouter();
   const role = useAuthStore((store) => store.role);
   const isHydrated = useAuthStore((store) => store.isHydrated);
+  const accessToken = useAuthStore((store) => store.accessToken);
 
   const isAdmin = role === 'ADMIN';
 
@@ -122,9 +123,13 @@ export default function NoticeDetailClient({ noticeId }: NoticeDetailClientProps
     if (!isAdmin) return;
     const confirmed = window.confirm('정말로 이 공지사항을 삭제하시겠습니까? 삭제 후에는 되돌릴 수 없습니다.');
     if (!confirmed) return;
+    if (!accessToken) {
+      toast.error('인증 정보가 만료되었습니다. 다시 로그인해 주세요.');
+      return;
+    }
 
     try {
-      await deleteNotice(notice.id);
+      await deleteNotice(notice.id, { accessToken });
       toast.success('공지사항을 삭제했습니다.');
       router.replace('/help/notice');
       router.refresh();

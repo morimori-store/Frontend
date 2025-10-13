@@ -19,7 +19,9 @@ type AttachmentState = NoticeDocument & { markedForDeletion?: boolean };
 export default function NoticeEditClient({ noticeId }: NoticeEditClientProps) {
   const router = useRouter();
   const toast = useToast();
-  const { role, isHydrated } = useAuthStore((store) => ({ role: store.role, isHydrated: store.isHydrated }));
+  const role = useAuthStore((store) => store.role);
+  const isHydrated = useAuthStore((store) => store.isHydrated);
+  const accessToken = useAuthStore((store) => store.accessToken);
 
   const [notice, setNotice] = useState<NoticeDetail | null>(null);
   const [title, setTitle] = useState('');
@@ -83,16 +85,24 @@ export default function NoticeEditClient({ noticeId }: NoticeEditClientProps) {
       toast.error('내용을 입력해 주세요.');
       return;
     }
+    if (!accessToken) {
+      toast.error('인증 정보가 만료되었습니다. 다시 로그인해 주세요.');
+      return;
+    }
 
     setSubmitting(true);
     try {
-      await updateNotice(notice.id, {
-        title: title.trim(),
-        content,
-        isImportant: priority === 'important',
-        files: [],
-        deleteFileIds: markedDeleteIds,
-      });
+      await updateNotice(
+        notice.id,
+        {
+          title: title.trim(),
+          content,
+          isImportant: priority === 'important',
+          files: [],
+          deleteFileIds: markedDeleteIds,
+        },
+        { accessToken },
+      );
       toast.success('공지사항을 수정했습니다.');
       router.replace(`/help/notice/${notice.id}`);
       router.refresh();

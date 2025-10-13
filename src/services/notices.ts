@@ -17,6 +17,24 @@ export type NoticeDetail = {
   documents: NoticeDocument[];
 };
 
+export type NoticeSummary = {
+  id: number;
+  title: string;
+  isImportant: boolean;
+  viewCount: number;
+  documentCount: number;
+  createDate?: string;
+};
+
+export type NoticeList = {
+  notices: NoticeSummary[];
+  currentPage: number;
+  pageSize: number;
+  totalPages: number;
+  totalElements: number;
+  isLast: boolean;
+};
+
 type ApiEnvelope<T> = {
   resultCode?: string;
   msg?: string;
@@ -87,6 +105,72 @@ function resolveNoticeDetail(data: unknown): NoticeDetail {
   };
 }
 
+function resolveNoticeList(data: unknown): NoticeList {
+  if (!data || typeof data !== 'object') {
+    throw new Error('잘못된 공지사항 목록 응답입니다.');
+  }
+
+  const payload = data as {
+    notices?: unknown;
+    currentPage?: unknown;
+    pageSize?: unknown;
+    totalPages?: unknown;
+    totalElements?: unknown;
+    isLast?: unknown;
+  };
+
+  const notices: NoticeSummary[] = Array.isArray(payload.notices)
+    ? payload.notices
+        .map((item) => {
+          if (!item || typeof item !== 'object') return null;
+          const raw = item as {
+            id?: unknown;
+            title?: unknown;
+            isImportant?: unknown;
+            viewCount?: unknown;
+            documentCount?: unknown;
+            createDate?: unknown;
+          };
+          const id = Number(raw.id);
+          if (!Number.isFinite(id)) return null;
+          return {
+            id,
+            title: typeof raw.title === 'string' ? raw.title : '',
+            isImportant: Boolean(raw.isImportant),
+            viewCount: Number(raw.viewCount ?? 0) || 0,
+            documentCount: Number(raw.documentCount ?? 0) || 0,
+            createDate: typeof raw.createDate === 'string' ? raw.createDate : undefined,
+          } satisfies NoticeSummary;
+        })
+        .filter((item): item is NoticeSummary => Boolean(item))
+    : [];
+
+  const rawCurrentPage = Number(payload.currentPage);
+  const currentPage = Number.isFinite(rawCurrentPage)
+    ? Math.max(0, rawCurrentPage - 1)
+    : 0;
+
+  const rawPageSize = Number(payload.pageSize);
+  const pageSize = Number.isFinite(rawPageSize) ? rawPageSize : notices.length || 10;
+
+  const rawTotalPages = Number(payload.totalPages);
+  const totalPages = Number.isFinite(rawTotalPages) ? Math.max(1, rawTotalPages) : 1;
+
+  const rawTotalElements = Number(payload.totalElements);
+  const totalElements = Number.isFinite(rawTotalElements)
+    ? Math.max(0, rawTotalElements)
+    : notices.length;
+
+  return {
+    notices,
+    currentPage,
+    pageSize,
+    totalPages,
+    totalElements,
+    isLast: Boolean(payload.isLast),
+  };
+}
+
 async function parseResponse<T>(res: Response, fallbackMessage: string): Promise<ApiEnvelope<T>> {
   const payload = (await res
     .json()
@@ -107,7 +191,7 @@ export async function fetchNoticeDetail(noticeId: string | number): Promise<Noti
     throw new Error('공지사항 ID가 필요합니다.');
   }
 
-  const res = await fetch(`${API_BASE_URL}/api/notices/${noticeId}`, {
+  const res = await fetch(`${API_BASE_URL}/api/support/notices/${noticeId}`, {
     method: 'GET',
     credentials: 'include',
     cache: 'no-store',
@@ -118,6 +202,38 @@ export async function fetchNoticeDetail(noticeId: string | number): Promise<Noti
   return resolveNoticeDetail(rawData);
 }
 
+export type NoticeListParams = {
+  keyword?: string;
+  page?: number;
+  size?: number;
+};
+
+export async function fetchNoticeList(params: NoticeListParams = {}): Promise<NoticeList> {
+  const searchParams = new URLSearchParams();
+  if (params.keyword && params.keyword.trim()) {
+    searchParams.set('keyword', params.keyword.trim());
+  }
+  if (typeof params.page === 'number') {
+    const pageValue = Math.max(1, params.page + 1);
+    searchParams.set('page', String(pageValue));
+  }
+  if (typeof params.size === 'number') {
+    searchParams.set('size', String(params.size));
+  }
+
+  const query = searchParams.toString();
+  const endpoint = `${API_BASE_URL}/api/support/notices${query ? `?${query}` : ''}`;
+  const res = await fetch(endpoint, {
+    method: 'GET',
+    credentials: 'include',
+    cache: 'no-store',
+  });
+
+  const payload = await parseResponse<NoticeList>(res, '공지사항 목록을 불러오지 못했습니다.');
+  const rawData = (payload.data ?? (payload as unknown)) as unknown;
+  return resolveNoticeList(rawData);
+}
+
 export type UpdateNoticePayload = {
   title: string;
   content: string;
@@ -126,23 +242,82 @@ export type UpdateNoticePayload = {
   deleteFileIds?: number[];
 };
 
-export async function updateNotice(noticeId: string | number, payload: UpdateNoticePayload): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/api/notices/${noticeId}`, {
+export type CreateNoticePayload = {
+  title: string;
+  content: string;
+  isImportant: boolean;
+  files?: string[];
+};
+
+type NoticeMutationPayload = {
+  title: string;
+  content: string;
+  isImportant: boolean;
+  files?: string[];
+  deleteFileIds?: number[];
+};
+
+function buildNoticeFormBody(payload: NoticeMutationPayload): string {
+  const params = new URLSearchParams();
+  params.set('title', payload.title);
+  params.set('content', payload.content);
+  params.set('isImportant', String(payload.isImportant));
+  (payload.files ?? []).forEach((fileUrl) => {
+    if (fileUrl) params.append('files', fileUrl);
+  });
+  (payload.deleteFileIds ?? []).forEach((fileId) => {
+    params.append('deleteFileIds', String(fileId));
+  });
+  return params.toString();
+}
+
+function buildAuthHeaders(accessToken?: string): HeadersInit {
+  return accessToken
+    ? {
+        Authorization: `Bearer ${accessToken}`,
+      }
+    : {};
+}
+
+export async function createNotice(payload: CreateNoticePayload, options?: { accessToken?: string }): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/api/support/notices`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+      ...buildAuthHeaders(options?.accessToken),
+    },
+    body: buildNoticeFormBody(payload),
+  });
+
+  await parseResponse<unknown>(res, '공지사항을 생성하지 못했습니다.');
+}
+
+export async function updateNotice(
+  noticeId: string | number,
+  payload: UpdateNoticePayload,
+  options?: { accessToken?: string },
+): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/api/support/notices/${noticeId}`, {
     method: 'PUT',
     credentials: 'include',
     headers: {
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+      ...buildAuthHeaders(options?.accessToken),
     },
-    body: JSON.stringify(payload),
+    body: buildNoticeFormBody(payload),
   });
 
   await parseResponse<unknown>(res, '공지사항을 수정하지 못했습니다.');
 }
 
-export async function deleteNotice(noticeId: string | number): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/api/notices/${noticeId}`, {
+export async function deleteNotice(noticeId: string | number, options?: { accessToken?: string }): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/api/support/notices/${noticeId}`, {
     method: 'DELETE',
     credentials: 'include',
+    headers: {
+      ...buildAuthHeaders(options?.accessToken),
+    },
   });
 
   await parseResponse<unknown>(res, '공지사항을 삭제하지 못했습니다.');
