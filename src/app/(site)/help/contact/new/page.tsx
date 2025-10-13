@@ -99,7 +99,7 @@ export default function ContactCreatePage() {
           className="rounded bg-[var(--color-primary)] px-4 py-2 text-white"
           onClick={async () => {
             // 서버로 전송
-            await fetch('/api/notices', {
+            await fetch('/api/support/notices', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ title, bodyHtml: html, attachments: [] }),

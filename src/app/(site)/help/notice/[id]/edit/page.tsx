@@ -1,4 +1,4 @@
-import NoticeDetailClient from '@/components/help/NoticeDetailClient';
+import NoticeEditClient from '@/components/help/NoticeEditClient';
 
 type PageParams = {
   id: string;
@@ -6,5 +6,5 @@ type PageParams = {
 
 export default async function Page({ params }: { params: Promise<PageParams> }) {
   const { id } = await params;
-  return <NoticeDetailClient noticeId={id} />;
+  return <NoticeEditClient noticeId={id} />;
 }
