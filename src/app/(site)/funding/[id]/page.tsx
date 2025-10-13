@@ -1,5 +1,6 @@
 // app/funding/[id]/page.tsx
 import { notFound } from 'next/navigation';
+import { cookies } from 'next/headers';
 import ProductImages from './components/ProductImages';
 import ProductInfo from './components/ProductInfo';
 import ProductTabs from './components/ProductTabs';
@@ -37,6 +38,34 @@ async function getFundingDetail(id: string) {
   }
 }
 
+// 현재 로그인한 사용자 정보 가져오기
+async function getCurrentUser() {
+  try {
+    // 쿠키 가져오기
+    const cookieStore = await cookies();
+    const cookieHeader = cookieStore.toString(); // 모든 쿠키를 문자열로 변환
+
+    const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+      cache: 'no-store',
+      headers: {
+        Cookie: cookieHeader, // 쿠키를 헤더에 포함
+      },
+    });
+
+    if (!response.ok) {
+      console.log('사용자 정보 없음 (미로그인)');
+      return null;
+    }
+
+    const data = await response.json();
+    console.log('👤 현재 사용자:', data);
+    return data.data;
+  } catch (error) {
+    console.error('❌ 사용자 정보 조회 실패:', error);
+    return null;
+  }
+}
+
 interface FundingDetailPageProps {
   params: Promise<{ id: string }>;
 }
@@ -47,13 +76,23 @@ export default async function FundingDetailPage({
   const resolvedParams = await params;
   console.log('🔍 펀딩 ID:', resolvedParams.id);
 
-  const funding = await getFundingDetail(resolvedParams.id);
+  const [funding, currentUser] = await Promise.all([
+    getFundingDetail(resolvedParams.id),
+    getCurrentUser(),
+  ]);
+
   console.log('📦 최종 펀딩 데이터:', funding);
+  console.log('👤 현재 사용자:', currentUser);
 
   if (!funding) {
     console.error('❌ 펀딩 데이터 없음 - not-found 표시');
     notFound();
   }
+
+  const currentUserId = currentUser?.userId;
+
+  console.log('👤 현재 사용자 ID:', currentUserId);
+  console.log('🎨 작가 ID:', funding.author.id);
 
   // 이미지 배열 구성
   const productImages = [
@@ -90,6 +129,8 @@ export default async function FundingDetailPage({
             description={funding.description}
             news={funding.news}
             communities={funding.communities}
+            authorId={funding.author.id}
+            currentUserId={currentUserId}
           />
 
           <AuthorInfo
