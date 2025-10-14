@@ -1,7 +1,7 @@
-'use client'
+'use client';
 
-import Star from "@/assets/icon/star.svg";
-import Image from "next/image";
+import Star from '@/assets/icon/star.svg';
+import Image from 'next/image';
 
 type ProductProps = {
   img?: string | null;
@@ -10,7 +10,7 @@ type ProductProps = {
   discount?: string;
   price: string;
   originalPrice?: string;
-  rating: string;
+  rating?: string;
 };
 
 export default function ProductCard({
@@ -51,7 +51,9 @@ export default function ProductCard({
         <div className="flex flex-wrap items-center mt-2">
           {hasDiscount ? (
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[16px] font-bold text-primary">{discount}</span>
+              <span className="text-[16px] font-bold text-primary">
+                {discount}
+              </span>
               <span className="text-[18px] font-bold">{price}</span>
               <span className="text-[16px] mr-2 text-gray-300 line-through">
                 {originalPrice}
@@ -64,10 +66,12 @@ export default function ProductCard({
           )}
         </div>
 
-        <div className="flex items-center">
-          <Star />
-          <span className="mx-2 text-[18px]">{rating}</span>
-        </div>
+        {rating && (
+          <div className="flex items-center">
+            <Star />
+            <span className="mx-2 text-[18px]">{rating}</span>
+          </div>
+        )}
       </div>
     </article>
   );
