@@ -32,8 +32,8 @@ export const fetchFundingList = async (
       searchParams.append('minPrice', String(params.minPrice));
     }
 
-    if (params.categoryNames && params.categoryNames.length > 0) {
-      searchParams.append('categoryName', params.categoryNames.join(','));
+    if (params.categoryIds && params.categoryIds.length > 0) {
+      searchParams.append('categoryId', params.categoryIds.join(','));
     }
 
     if (params.maxPrice !== undefined) {

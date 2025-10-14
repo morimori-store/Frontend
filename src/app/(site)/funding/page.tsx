@@ -42,7 +42,7 @@ const parseSearchParams = (searchParams: SearchParams): FundingListProps => {
     keyword: searchParams.keyword || undefined,
     minPrice: searchParams.minPrice ? Number(searchParams.minPrice) : undefined,
     maxPrice: searchParams.maxPrice ? Number(searchParams.maxPrice) : undefined,
-    categoryNames: searchParams.category?.split(',') || undefined,
+    categoryIds: searchParams.category?.split(',').map(Number) || undefined,
     page: searchParams.page ? Number(searchParams.page) : 0,
     size: searchParams.size ? Number(searchParams.size) : 16,
   };
@@ -59,10 +59,10 @@ export default async function FundingPage({ searchParams }: FundingPageProps) {
       getPopularFundings(),
       fetchCategories(),
     ]);
+  console.log(fundingResponse);
 
-  console.log(categoryResponse.data);
-  // 최상위 카테고리만 추출하여 CategoryFilter 형식으로 변환
   const categories = categoryResponse.data.map((category) => ({
+    id: category.id,
     name: category.categoryName,
   }));
 
