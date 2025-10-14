@@ -11,8 +11,11 @@ import SearchIcon from '@/assets/icon/search.svg';
 import Modal from '@/components/Modal';
 import DefaultProfile from '@/assets/icon/default_profile.svg';
 import { useToast } from '@/components/ToastProvider';
-import { approveFundingApplication } from '@/services/adminFundingApproval';
-import { fetchArtistApplications, normalizeArtistApplication } from '@/services/adminArtistApplications';
+import {
+  approveFundingApplication,
+  fetchFundingApprovalList,
+  type FundingApprovalList,
+} from '@/services/adminFundingApproval';
 import { useAuthStore } from '@/stores/authStore';
 import { useAuthGuard } from '@/hooks/useAuthGuard';
 
@@ -98,33 +101,30 @@ export default function ApproveFundingPage() {
       try {
         setLoadingList(true);
         setListError(null);
-        const summaries = await fetchArtistApplications(
-          { status: 'PENDING', page: 0, size: 20 },
+        const list = await fetchFundingApprovalList(
+          { page: 0, size: 20, sort: 'requestedAt', order: 'DESC' },
           accessToken ? { accessToken } : undefined,
         );
 
         if (!active) return;
-        const normalized = summaries.map((summary) => {
-          const base = normalizeArtistApplication(summary);
-          return {
-            applicationId: base.applicationId,
-            id: base.applicantId,
-            name: base.artistName,
-            fundingTitle: base.fundingTitle,
-            fundingSummary: base.fundingSummary,
-            email: base.email,
-            phone: base.phone,
-            businessNumber: base.businessNumber,
-            businessDocument: base.businessDocument,
-            commerceNumber: base.commerceNumber,
-            commerceDocument: base.commerceDocument,
-            appliedAt: base.appliedAt,
-          } as FundingApplicant;
-        });
+        const normalized = list.content.map((item) => ({
+          applicationId: Number(item.fundingId),
+          id: String(item.fundingId),
+          name: (item as { artistName?: string }).artistName ?? item.productName ?? '',
+          fundingTitle: item.productName ?? '',
+          fundingSummary: (item as { summary?: string }).summary ?? '',
+          email: (item as { artistEmail?: string }).artistEmail ?? '',
+          phone: (item as { artistPhone?: string }).artistPhone ?? '',
+          businessNumber: (item as { businessNumber?: string }).businessNumber ?? '',
+          businessDocument: (item as { businessDocument?: string }).businessDocument ?? '',
+          commerceNumber: (item as { commerceNumber?: string }).commerceNumber ?? '',
+          commerceDocument: (item as { commerceDocument?: string }).commerceDocument ?? '',
+          appliedAt: item.requestedAt ?? '',
+        } as FundingApplicant));
         setApplicantList(normalized);
       } catch (error) {
         if (!active) return;
-        const message = error instanceof Error ? error.message : '펀딩 신청 목록을 불러오지 못했습니다.';
+        const message = error instanceof Error ? error.message : '펀딩 승인 대기 목록을 불러오지 못했습니다.';
         setListError(message);
         setApplicantList([]);
       } finally {
