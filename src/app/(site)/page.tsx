@@ -1,13 +1,15 @@
-// src/app/page.tsx
+
 import Hero from '@/components/Hero';
-import ProductSection, {
+import {
   UpcomingProductsSection,
   RestockProductsSection,
   PlannedProductsSection,
   OnSaleProductsSection,
   NewProductsSection,
   LowStockProductsSection,
-} from '@/components/main/ProductSection.server';
+} from '@/components/main/ProductSection';
+
+export const dynamic = 'force-dynamic';
 
 export default async function Home() {
   return (
