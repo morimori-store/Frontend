@@ -19,6 +19,7 @@ export interface FundingListProps {
   keyword?: string;
   minPrice?: number;
   maxPrice?: number;
+  categoryNames?: string[];
   page?: number;
   size?: number;
 }

@@ -6,8 +6,8 @@ import { PopularFundingSlider } from './components/PopularFundingSlider';
 import { SortDropdown } from './components/SortDropdown';
 import { FundingGrid } from './components/FundingGrid';
 import { fetchFundingList } from '@/utils/api/funding';
+import { fetchCategories } from '@/utils/api/category';
 import { FundingListProps, FundingStatus, SortBy } from '@/types/funding';
-import TestCreateFunding from './components/TestCreateFunding';
 
 type SearchParams = {
   status?: string;
@@ -15,6 +15,7 @@ type SearchParams = {
   keyword?: string;
   minPrice?: string;
   maxPrice?: string;
+  category?: string; // 추가
   page?: string;
   size?: string;
 };
@@ -27,7 +28,7 @@ async function getPopularFundings() {
   const params: FundingListProps = {
     sortBy: 'popular',
     status: ['OPEN'],
-    size: 8, // 인기 펀딩은 8개만
+    size: 8,
   };
   return await fetchFundingList(params);
 }
@@ -41,6 +42,7 @@ const parseSearchParams = (searchParams: SearchParams): FundingListProps => {
     keyword: searchParams.keyword || undefined,
     minPrice: searchParams.minPrice ? Number(searchParams.minPrice) : undefined,
     maxPrice: searchParams.maxPrice ? Number(searchParams.maxPrice) : undefined,
+    categoryNames: searchParams.category?.split(',') || undefined,
     page: searchParams.page ? Number(searchParams.page) : 0,
     size: searchParams.size ? Number(searchParams.size) : 16,
   };
@@ -50,17 +52,19 @@ export default async function FundingPage({ searchParams }: FundingPageProps) {
   const resolvedSearchParams = await searchParams;
   const params = parseSearchParams(resolvedSearchParams);
 
-  const fundingResponse = await fetchFundingList(params);
+  // 병렬로 데이터 가져오기
+  const [fundingResponse, popularFundings, categoryResponse] =
+    await Promise.all([
+      fetchFundingList(params),
+      getPopularFundings(),
+      fetchCategories(),
+    ]);
 
-  const popularFundings = await getPopularFundings();
-
-  const categories = [
-    { name: '스티커', count: 999 },
-    { name: '메모지', count: 999 },
-    { name: '노트', count: 999 },
-    { name: '액세서리', count: 99 },
-    { name: '디지털 문구', count: 99 },
-  ];
+  console.log(categoryResponse.data);
+  // 최상위 카테고리만 추출하여 CategoryFilter 형식으로 변환
+  const categories = categoryResponse.data.map((category) => ({
+    name: category.categoryName,
+  }));
 
   return (
     <>
@@ -80,13 +84,11 @@ export default async function FundingPage({ searchParams }: FundingPageProps) {
             <SortDropdown />
           </div>
 
-          {/* ⭐ 페이징 정보 전달 */}
           <FundingGrid
             fundings={fundingResponse.data.content}
             totalPages={fundingResponse.data.totalPages}
             currentPage={params.page || 0}
           />
-          {/* <TestCreateFunding /> */}
         </main>
       </div>
     </>
