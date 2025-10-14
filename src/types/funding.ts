@@ -19,6 +19,7 @@ export interface FundingListProps {
   keyword?: string;
   minPrice?: number;
   maxPrice?: number;
+  categoryIds?: number[];
   page?: number;
   size?: number;
 }
@@ -179,8 +180,8 @@ export interface FundingDetailResponse {
 
 export interface FundingCommunity {
   id: number;
-  writerId?: number;
   writerName: string;
+  writerEmail: string;
   profileImageUrl: string;
   content: string;
   createDate: string;

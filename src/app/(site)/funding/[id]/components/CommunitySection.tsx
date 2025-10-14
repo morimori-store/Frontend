@@ -6,13 +6,10 @@ import Image from 'next/image';
 import PlusBtn from '@/assets/icon/plusBtn.svg';
 import TrashCan from '@/assets/icon/trashcan.svg';
 import { FundingCommunity } from '@/types/funding';
+import { useAuthStore } from '@/stores/authStore';
 
 interface CommunitySectionProps {
   fundingId: number;
-  authorId: number;
-  currentUserId?: number;
-  currentUserName?: string; // 추가
-  currentUserProfileImage?: string; // 추가
   communities: FundingCommunity[];
 }
 
@@ -22,8 +19,6 @@ const API_BASE_URL = (
 
 export default function CommunitySection({
   fundingId,
-  authorId,
-  currentUserId,
   communities: initialCommunities,
 }: CommunitySectionProps) {
   const [newMessage, setNewMessage] = useState('');
@@ -31,9 +26,8 @@ export default function CommunitySection({
     useState<FundingCommunity[]>(initialCommunities);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
-
-  // 로그인 여부 확인
-  const isLoggedIn = !!currentUserId;
+  const userProfile = useAuthStore((store) => store.userProfile);
+  const role = useAuthStore((store) => store.role);
 
   const handleSendMessage = async () => {
     if (!newMessage.trim()) {
@@ -41,7 +35,7 @@ export default function CommunitySection({
       return;
     }
 
-    if (!isLoggedIn) {
+    if (!role || !userProfile) {
       alert('로그인이 필요합니다.');
       return;
     }
@@ -69,11 +63,10 @@ export default function CommunitySection({
 
       const result = await response.json();
 
-      // 새 댓글을 맨 위에 추가 (현재 사용자 정보 사용)
       const newCommunity: FundingCommunity = {
         id: result.data,
-        writerId: currentUserId,
-        writerName: '',
+        writerName: userProfile.nickname as string,
+        writerEmail: userProfile.email as string,
         profileImageUrl: '',
         content: newMessage,
         createDate: new Date().toISOString(),
@@ -139,7 +132,7 @@ export default function CommunitySection({
       <div className="p-4">
         <h3 className="font-medium text-gray-800 mb-3">댓글</h3>
 
-        {isLoggedIn ? (
+        {role ? (
           <div className="flex gap-2 items-end">
             <input
               type="text"
@@ -177,10 +170,12 @@ export default function CommunitySection({
           </div>
         ) : (
           communities.map((community) => {
+            const isOwner = userProfile?.email === community.writerEmail;
+
             return (
               <div
                 key={community.id}
-                className="p-4 rounded-lg border bg-white border-gray-200"
+                className={`p-4 rounded-lg border bg-white ${isOwner ? 'border-primary border-2' : 'border-gray-200'}`}
               >
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-center gap-3">
@@ -209,6 +204,18 @@ export default function CommunitySection({
                       </div>
                     </div>
                   </div>
+
+                  {/* 삭제 버튼 - 작성자만 볼 수 있음 */}
+                  {isOwner && (
+                    <button
+                      onClick={() => handleDeleteComment(community.id)}
+                      disabled={deletingId === community.id}
+                      className="disabled:opacity-50 hover:opacity-70 transition-opacity"
+                      aria-label="댓글 삭제"
+                    >
+                      <TrashCan />
+                    </button>
+                  )}
                 </div>
                 <div className="text-sm text-gray-800 leading-relaxed break-words whitespace-pre-wrap">
                   {community.content}

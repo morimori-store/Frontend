@@ -12,7 +12,11 @@ function FundingCard({ data }: Props) {
       <div>
         <div className="relative w-[237px] h-[206px] overflow-hidden rounded-lg bg-gray-100">
           <Image
-            src={data.imageUrl}
+            src={
+              data.imageUrl === ''
+                ? '@/assets/defaultFunding.jpg'
+                : data.imageUrl
+            }
             alt={data.title}
             fill
             className="object-cover"
