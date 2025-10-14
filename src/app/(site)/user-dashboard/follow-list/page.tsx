@@ -27,7 +27,7 @@ export default function FollowingAuthors() {
       <h1 className="text-3xl font-bold mb-8">팔로우하는 작가</h1>
 
       {/* 작가 그리드 */}
-      <div className="grid grid-cols-4 gap-6 mb-12">
+      <div className="mx-auto w-1/2 grid grid-cols-4 gap-6 mb-12">
         {authors.map((author) => (
           <AuthorCard
             key={author.id}

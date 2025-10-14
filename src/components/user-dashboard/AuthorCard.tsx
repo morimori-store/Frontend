@@ -16,7 +16,7 @@ export function AuthorCard({
 }: AuthorCardProps) {
   return (
     // <article className="border border-gray-200 rounded-lg p-6 bg-white flex flex-col items-center relative max-w-[231px] max-h-[273px] w-full h-full">
-    <article className="border border-gray-200 rounded-lg p-6 bg-white flex flex-col items-center relative w-full aspect-[231/273]">
+    <article className="border border-gray-200 rounded-lg p-6 bg-white flex flex-col items-center relative max-w-[231px] aspect-[231/273]">
       {/* 집 아이콘 */}
       <button className="absolute top-4 right-4 text-gray-300 hover:text-gray-500">
         <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
