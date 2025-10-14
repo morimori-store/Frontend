@@ -120,8 +120,6 @@ export default async function FundingDetailPage({
             communities={funding.communities}
             authorId={funding.author.id}
             currentUserId={currentUserId}
-            currentUserName={currentUserName}
-            currentUserProfileImage={currentUserProfileImage}
           />
 
           <AuthorInfo

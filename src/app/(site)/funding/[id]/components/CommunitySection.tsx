@@ -24,8 +24,6 @@ export default function CommunitySection({
   fundingId,
   authorId,
   currentUserId,
-  currentUserName,
-  currentUserProfileImage,
   communities: initialCommunities,
 }: CommunitySectionProps) {
   const [newMessage, setNewMessage] = useState('');
@@ -75,15 +73,15 @@ export default function CommunitySection({
       const newCommunity: FundingCommunity = {
         id: result.data,
         writerId: currentUserId,
-        writerName: currentUserName || '사용자',
-        profileImageUrl: currentUserProfileImage || '',
+        writerName: '',
+        profileImageUrl: '',
         content: newMessage,
         createDate: new Date().toISOString(),
       };
 
       setCommunities((prev) => [newCommunity, ...prev]);
       setNewMessage('');
-      alert('댓글이 등록되었습니다.');
+      window.location.href = `${window.location.pathname}?tab=shipping`;
     } catch (error) {
       console.error('댓글 등록 실패:', error);
       alert('댓글 등록에 실패했습니다.');
