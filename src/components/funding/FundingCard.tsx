@@ -14,7 +14,7 @@ function FundingCard({ data }: Props) {
           <Image
             src={
               data.imageUrl === ''
-                ? '@/assets/defaultFunding.jpg'
+                ? '/defaultImages/defaultFunding.jpg'
                 : data.imageUrl
             }
             alt={data.title}
