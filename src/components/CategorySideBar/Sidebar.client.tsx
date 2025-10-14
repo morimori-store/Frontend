@@ -1,24 +1,19 @@
+
 'use client';
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import Hamburger from "@/assets/icon/hamburger.svg";
+import Hamburger from '@/assets/icon/hamburger.svg';
+
+type Tag = { id: number; tagName: string };
 
 function buildQueryString(
   current: URLSearchParams,
-  next: Record<string, string | number | null | undefined | (string | number)[]>
+  next: Record<string, string | number | null | undefined>
 ) {
   const sp = new URLSearchParams(current.toString());
   Object.entries(next).forEach(([k, v]) => {
-    if (Array.isArray(v)) {
-      sp.delete(k);
-      v.forEach((val) => {
-        if (val != null && `${val}`.length > 0) sp.append(k, String(val));
-      });
-    } else if (v == null || `${v}` === '') {
-      sp.delete(k);
-    } else {
-      sp.set(k, String(v));
-    }
+    if (v == null || `${v}` === '') sp.delete(k);
+    else sp.set(k, String(v));
   });
   return sp.toString();
 }
@@ -29,18 +24,19 @@ function withResetPage(sp: URLSearchParams) {
   return next;
 }
 
-const STYLE_OPTIONS = [
-  { id: 1, label: '귀염' },
-  { id: 2, label: '감성' },
-  { id: 3, label: '심플' },
-  { id: 4, label: '동양풍' },
-  { id: 5, label: '음식' },
-  { id: 6, label: '도트' },
-  { id: 7, label: '개발자' },
-  { id: 8, label: '빈티지' },
+// 정적 태그 
+export const STYLE_TAGS: Tag[] = [
+  { id: 1, tagName: '귀염' },
+  { id: 2, tagName: '음식' },
+  { id: 3, tagName: '감성' },
+  { id: 4, tagName: '도트' },
+  { id: 5, tagName: '심플' },
+  { id: 6, tagName: '개발자' },
+  { id: 7, tagName: '동양풍' },
+  { id: 8, tagName: '빈티지' },
 ];
 
-// 가격 범위를 실제 숫자로 매핑
+// 가격/배송 옵션
 const PRICE_OPTIONS = [
   { label: '1,000원 이하', min: 0, max: 1000 },
   { label: '1,000원~2,000원', min: 1000, max: 2000 },
@@ -48,10 +44,9 @@ const PRICE_OPTIONS = [
   { label: '3,000원 이상', min: 3000, max: 999999 },
 ];
 
-// 배송비 필터 
 const SHIPPING_OPTIONS = [
   { label: '무료배송', value: 'FREE' },
-  { label: '조건부 무료배송', value: 'CONDITIONAL_FREE' },
+  { label: '조건부 무료배송', value: 'CONDITIONAL' },
   { label: '유료배송', value: 'PAID' },
 ];
 
@@ -70,77 +65,57 @@ function SquareCheckbox({
         type="checkbox"
         checked={checked}
         onChange={onChange}
-        className="
-          w-[14px] h-[14px]
-          border-2 border-gray-200 rounded-[2px] bg-white
-          shrink-0
-          transition-colors
-          cursor-pointer
-        "
+        className="w-[14px] h-[14px] border-2 border-gray-200 rounded-[2px] bg-white shrink-0 transition-colors cursor-pointer"
       />
       <span className="text-sm leading-4">{label}</span>
     </label>
   );
 }
 
-// 사이드바
-export default function CategorySideBar({ title }: { title: string }) {
+export default function CategorySideBarClient({ title }: { title: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const sp = useSearchParams();
 
-  // 현재 선택 상태 읽기
+  // CSV/다중키 모두 지원
   const selectedTags = new Set(sp.getAll('tagIds').flatMap((v) => v.split(',')));
   const minPrice = sp.get('minPrice');
   const maxPrice = sp.get('maxPrice');
   const deliveryType = sp.get('deliveryType');
 
-  // 스타일(태그)
+  // 스타일(태그) → URL엔 CSV 한 건으로 저장
   const toggleTag = (id: number) => {
-    const nextTags = new Set(selectedTags);
-    if (nextTags.has(String(id))) nextTags.delete(String(id));
-    else nextTags.add(String(id));
+    const next = new Set(selectedTags);
+    const k = String(id);
+    if (next.has(k)) next.delete(k);
+    else next.add(k);
 
+    const csv = Array.from(next).join(','); // "1,5,8"
     const qs = buildQueryString(withResetPage(new URLSearchParams(sp)), {
-      tagIds: Array.from(nextTags),
+      tagIds: csv || null,
     });
     router.push(`${pathname}?${qs}`);
   };
 
-  // 가격대
-    const setPriceRange = (min: number, max: number) => {
+  const setPriceRange = (min: number, max: number) => {
     const isActive = minPrice === String(min) && maxPrice === String(max);
-
     const qs = buildQueryString(withResetPage(new URLSearchParams(sp)), {
-      minPrice: isActive ? null : min, // 다시 클릭 시 해제
+      minPrice: isActive ? null : min,
       maxPrice: isActive ? null : max,
     });
-
     router.push(`${pathname}?${qs}`);
   };
 
-  // 배송비
   const setDelivery = (value: string) => {
     const isActive = deliveryType === value;
-
     const qs = buildQueryString(withResetPage(new URLSearchParams(sp)), {
-      deliveryType: isActive ? null : value, // 다시 클릭 시 해제
+      deliveryType: isActive ? null : value,
     });
-
     router.push(`${pathname}?${qs}`);
   };
 
   return (
-    <aside
-      className="
-        bg-primary-20
-        text-black
-        px-6 py-7
-        w-[240px]
-        min-h-screen
-      "
-    >
-      {/* 상단 타이틀 + 햄버거 */}
+    <aside className="bg-primary-20 text-black px-6 py-7 w-[240px] min-h-screen">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-[28px] font-bold">{title}</h1>
         <button type="button" aria-label="필터 열기" className="grid gap-1.5">
@@ -153,10 +128,10 @@ export default function CategorySideBar({ title }: { title: string }) {
         <section>
           <h2 className="font-bold text-[18px] mb-3">스타일</h2>
           <div className="grid grid-cols-2 gap-x-8 gap-y-2">
-            {STYLE_OPTIONS.map((opt) => (
+            {STYLE_TAGS.map((opt) => (
               <SquareCheckbox
                 key={opt.id}
-                label={opt.label}
+                label={opt.tagName}
                 checked={selectedTags.has(String(opt.id))}
                 onChange={() => toggleTag(opt.id)}
               />

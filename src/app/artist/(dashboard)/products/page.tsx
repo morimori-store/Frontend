@@ -509,11 +509,6 @@ export default function ProductsPage() {
             setRefreshKey((k) => k + 1);
           }}
           onSaveSnapshot={handleSaveSnapshot}
-          onLoadBizFromProfile={async () => ({
-            companyName: '모리모리 스튜디오',
-            bizNumber: '123-45-67890',
-            ceoName: '홍길동',
-          })}
         />
 
         <form className="absolute right-0 flex h-10 w-[240px] items-center rounded-[12px] border border-primary px-4 text-sm text-[var(--color-gray-700)]">
