@@ -102,7 +102,7 @@ export default function FaqDetailClient({ faqId }: Props) {
           { label: '글번호', value: faq.id },
         ]}
         titleLeft={{ label: '질문', value: faq.question }}
-        content={<div className="whitespace-pre-line text-sm">{faq.answer}</div>}
+        content={<div className="whitespace-pre-line text-sm text-[var(--color-gray-600)]">{faq.answer}</div>}
       />
 
       <div className="mb-10 flex justify-between">
