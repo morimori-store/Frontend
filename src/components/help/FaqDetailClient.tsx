@@ -68,6 +68,10 @@ export default function FaqDetailClient({ faqId }: Props) {
     );
   }
 
+  if (state.status !== 'loaded') {
+    return null;
+  }
+
   const faq = state.data;
 
   const handleDelete = async () => {
