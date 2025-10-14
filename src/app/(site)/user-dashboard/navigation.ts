@@ -17,7 +17,7 @@ export const navItems = [
     label: '모리 캐시',
     subItems: [
       { href: '/user-dashboard/mori-cash/charge', label: '캐시 충전' },
-      { href: '/user-dashboard/mori-cash/history', label: '충전 / 사용 내역' },
+      { href: '/user-dashboard/mori-cash/history', label: '충전 내역' },
     ],
   },
 ];
