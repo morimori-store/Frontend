@@ -1,16 +1,83 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import Button from '@/components/Button';
 
+// API 응답 데이터의 타입을 정의하면 더 안전하게 코드를 작성할 수 있습니다.
+interface UserData {
+  userId: number;
+  email: string;
+  name: string;
+  profileImageUrl: string | null;
+  phone: string | null;
+  address: string | null;
+  detailAddress: string | null;
+  zipCode: string | null;
+  role: string;
+  grade: string;
+  status: string;
+  provider: string; // "KAKAO", "GOOGLE", "LOCAL"
+  money: number;
+  point: number;
+  createdAt: string;
+}
 export default function AccountSetting() {
   const [formData, setFormData] = useState({
     nickname: '',
     email: '',
     phone: '',
     address: '',
+    zipCode: '',
     password: '',
     passwordConfirm: '',
+    passwordMatching: false,
+    passwordChange: false,
   });
+
+  // 프로필 이미지 URL을 별도 상태로 관리합니다.
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
+  const API_BASE_URL = (
+    process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080'
+  ).replace(/\/+$/, '');
+
+  // 컴포넌트가 마운트될 때 API를 호출하기 위해 useEffect 사용
+  useEffect(() => {
+    const fetchAccountData = async () => {
+      try {
+        // API 요청
+        const response = await fetch(`${API_BASE_URL}/api/users/me`, {
+          method: 'GET',
+          headers: {
+            accept: 'application/json;charset=UTF-8',
+          },
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          throw new Error('계정 정보를 불러오는데 실패했습니다.');
+        }
+
+        const result: { data: UserData } = await response.json();
+        const userData = result.data;
+
+        // API 응답 데이터로 formData 상태 업데이트
+        setFormData((prev) => ({
+          ...prev,
+          nickname: userData.name,
+          email: userData.email,
+          phone: userData.phone || '',
+          address: userData.address || '',
+          zipCode: userData.zipCode || '',
+        }));
+
+        setProfileImageUrl(userData.profileImageUrl);
+      } catch (error) {
+        console.error('Error fetching account data:', error);
+      }
+    };
+
+    fetchAccountData();
+  }, [API_BASE_URL]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -20,8 +87,62 @@ export default function AccountSetting() {
     }));
   };
 
-  const handleSubmit = () => {
-    console.log('정보 수정하기', formData);
+  const handleSubmit = async () => {
+    // 비밀번호 필드가 하나라도 채워져 있다면, 두 필드가 일치하는지 확인합니다.
+    if (formData.password || formData.passwordConfirm) {
+      if (formData.password !== formData.passwordConfirm) {
+        alert('비밀번호가 일치하지 않습니다.');
+        return;
+      }
+    }
+
+    try {
+      const requestBody =
+        formData.password == '' && formData.passwordConfirm == ''
+          ? {
+              profileImageUrl: profileImageUrl,
+              name: formData.nickname,
+              phone: formData.phone,
+              address: formData.address,
+              detailAddress: '',
+              zipCode: formData.zipCode,
+              passwordChange: false,
+            }
+          : {
+              profileImageUrl: profileImageUrl,
+              name: formData.nickname,
+              phone: formData.phone,
+              address: formData.address,
+              detailAddress: '',
+              zipCode: formData.zipCode,
+              password: formData.password,
+              passwordConfirm: formData.passwordConfirm,
+              passwordChange: true,
+              passwordMatching: formData.password === formData.passwordConfirm,
+            };
+
+      const response = await fetch(`${API_BASE_URL}/api/users/me`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          accept: 'application/json;charset=UTF-8',
+        },
+        credentials: 'include',
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.msg || '정보 수정에 실패했습니다.');
+      }
+
+      alert('정보가 성공적으로 수정되었습니다.');
+      // 선택: 수정 후 비밀번호 필드를 비웁니다.
+      setFormData((prev) => ({ ...prev, password: '', passwordConfirm: '' }));
+    } catch (error) {
+      console.error('Error updating account data:', error);
+      alert((error as Error).message);
+    }
   };
 
   const handleCancel = () => {
@@ -34,22 +155,20 @@ export default function AccountSetting() {
 
       {/* 프로필 이미지 섹션 */}
       <div className="flex items-center gap-4 mb-12">
-        <div className="w-40 h-40 rounded-full bg-gray-300 overflow-hidden">
+        <div className="w-40 h-40 rounded-full border-2 overflow-hidden relative">
           <Image
-            src=""
+            src={profileImageUrl ?? '/defaultImages/defaultProfile.png'}
             alt="프로필"
-            width={132}
-            height={132}
-            className="w-full h-full object-cover"
+            fill
+            style={{ objectFit: 'cover' }}
+            priority
           />
         </div>
         <div className="flex ml-auto gap-3">
-          <button className="px-6 py-2 bg-primary text-white rounded-md font-medium ">
-            이미지 업로드
-          </button>
-          <button className="px-6 py-2 border-2 border-primary text-primary rounded-md font-medium ">
+          <Button>이미지 업로드</Button>
+          <Button variant="outline" onClick={() => setProfileImageUrl(null)}>
             이미지 삭제
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -75,9 +194,10 @@ export default function AccountSetting() {
             type="email"
             name="email"
             value={formData.email}
+            disabled
             onChange={handleChange}
             placeholder="이메일을 입력해주세요."
-            className="w-full px-4 py-3 border border-gray-300 rounded-md bg-primary-20 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-full px-4 py-3 border border-gray-300 rounded-md bg-primary-20 text-primary placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
 
@@ -137,18 +257,10 @@ export default function AccountSetting() {
 
         {/* 버튼 */}
         <div className="flex justify-end gap-3 pt-6">
-          <button
-            onClick={handleCancel}
-            className="px-8 py-3 bg-gray-400 text-white rounded-md font-medium hover:bg-gray-500"
-          >
-            취소 및 탈퇴
-          </button>
-          <button
-            onClick={handleSubmit}
-            className="px-8 py-3 bg-primary text-white rounded-md font-medium hover:bg-green-700"
-          >
-            정보 수정하기
-          </button>
+          <Button onClick={handleCancel} variant="danger">
+            회원 탈퇴
+          </Button>
+          <Button onClick={handleSubmit}>정보 수정하기</Button>
         </div>
       </div>
     </div>

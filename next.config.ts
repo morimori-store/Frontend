@@ -26,6 +26,11 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'lh3.googleusercontent.com', //구글 프로필 이미지
       },
+      {
+        protocol: 'https',
+        hostname: 'cdn.example.com',
+      },
+      { protocol: 'https', hostname: 's3.mori-mori.store', pathname: '/**' },
     ],
   },
 };
