@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
 import { useOrderStore } from '@/app/(site)/order/stores/orderStore';
@@ -348,11 +349,12 @@ const PaymentForm = ({ cartData }: PaymentFormProps) => {
               >
                 <div className="w-[150px] h-[150px] bg-gray-200 rounded overflow-hidden">
                   {item.image ? (
-                    <img
+                    <Image
                       src={item.image}
                       alt={item.name}
-                      className="w-full h-full object-cover"
-                    />
+                      width={150}
+                      height={150}
+                    ></Image>
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-500">
                       상품 이미지
@@ -363,7 +365,9 @@ const PaymentForm = ({ cartData }: PaymentFormProps) => {
                   <h3 className="font-semibold text-gray-800 mb-2">
                     {item.name}
                   </h3>
-                  <p className="text-gray-500 text-sm">옵션 : {item.option}</p>
+                  <p className="text-gray-500 text-sm">
+                    옵션 : {item.option ?? '없음'}
+                  </p>
                 </div>
                 <div className="text-right">
                   <div className="text-2xl font-bold">
