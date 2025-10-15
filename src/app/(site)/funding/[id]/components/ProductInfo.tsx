@@ -11,7 +11,7 @@ interface ProductInfoProps {
   title: string;
   category: string;
   price: number;
-  stock: number;
+  stock: number | null;
   soldCount: number;
   currentAmount: number;
   targetAmount: number;
@@ -48,7 +48,7 @@ export default function ProductInfo({
   const [isCheckingWishlist, setIsCheckingWishlist] = useState(false);
 
   const isFundingEnded = remainingDays < 0;
-  const isOutOfStock = stock <= 0;
+  const isOutOfStock = stock === 0 && stock !== null;
   const role = useAuthStore((store) => store.role);
   const toast = useToast();
 
@@ -201,10 +201,16 @@ export default function ProductInfo({
         <div>
           <p>재고 현황</p>
           <div className="flex gap-4 items-center">
-            <div className="font-bold text-gray-900">
-              {(stock ?? 0).toLocaleString()}
-              <span className="text-[18px] font-normal">개 남음</span>
-            </div>
+            {stock !== null ? (
+              <div className="font-bold text-gray-900">
+                {(stock ?? 0).toLocaleString()}
+                <span className="text-[18px] font-normal">개 남음</span>
+              </div>
+            ) : (
+              <div className="font-bold text-gray-900">
+                <span className="text-2xl">무제한</span>
+              </div>
+            )}
             <div className="text-gray-500 font-normal text-[18px]">
               {(soldCount ?? 0).toLocaleString()}개 판매됨
             </div>
