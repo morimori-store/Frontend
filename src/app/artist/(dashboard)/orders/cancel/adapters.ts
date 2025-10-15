@@ -8,6 +8,8 @@ export type CancelRow = {
   buyer: string;       // "닉네임 / id"
   requestState: string;// 상태(한글)
   requestAt: string;   // YYYY-MM-DD
+  orderId?: number;
+  orderItemIds?: number[]; 
 };
 
 const toDateOnly = (isoOrDate?: string): string => {

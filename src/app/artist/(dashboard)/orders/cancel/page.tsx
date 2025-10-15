@@ -8,7 +8,6 @@ import { fetchArtistCancellationRequests, cancelArtistOrder } from '@/services/a
 import { toRow, type CancelRow } from './adapters';
 import { ArtistCancellationParams } from '@/types/artistDashboard';
 
-
 const columns: AdminTableColumn<CancelRow>[] = [
   { key: 'id', header: '주문번호', align: 'center', sortable: true },
   { key: 'statusText', header: '상품명', align: 'left', sortable: true },
@@ -18,7 +17,6 @@ const columns: AdminTableColumn<CancelRow>[] = [
 ];
 
 // UI → API 매핑
-
 const SORT_MAP: Record<string, string> = {
   id: 'orderNumber',
   statusText: 'productName',
@@ -26,7 +24,6 @@ const SORT_MAP: Record<string, string> = {
   requestState: 'status',
   requestAt: 'requestDate',
 };
-
 
 export default function OrderCancelPage() {
   const [rows, setRows] = useState<CancelRow[]>([]);
@@ -66,19 +63,6 @@ export default function OrderCancelPage() {
         const data = await fetchArtistCancellationRequests(query);
         const mapped = (data.content ?? []).map(toRow);
 
-        // 테스트용 임시 데이터
-        if (!mapped.length) {
-          mapped.push({
-            id: 'TEMP-001',
-            statusText: '벚꽃 키링',
-            buyer: '홍길동 / test_user',
-            requestState: '취소요청',
-            requestAt: '2025-10-16',
-            orderId: 1,
-            orderItemIds: [101],
-          } as any);
-        }
-
         if (!alive) return;
         setRows(mapped);
         setTotalPages(Math.max(1, data.totalPages ?? 1));
@@ -103,18 +87,20 @@ export default function OrderCancelPage() {
   const handleApproveCancel = async () => {
     if (selectedIds.length === 0) return alert('승인할 주문을 선택해주세요.');
 
-    const confirmApprove = confirm(`선택된 주문 ${selectedIds.join(', ')}의 취소를 승인하시겠습니까?`);
+    const confirmApprove = confirm(
+      `선택된 주문 ${selectedIds.join(', ')}의 취소를 승인하시겠습니까?`
+    );
     if (!confirmApprove) return;
 
     try {
       const selectedRows = rows.filter((r) => selectedIds.includes(r.id));
 
       await Promise.all(
-        selectedRows.map((row: any) =>
+        selectedRows.map((row) =>
           cancelArtistOrder(
-            row.orderId,
+            row.orderId ?? 0,
             '판매자 승인 취소',
-            row.orderItemIds ?? [1] // 실제 데이터 연결 시 orderItemIds 포함
+            row.orderItemIds ?? []
           )
         )
       );
@@ -134,7 +120,6 @@ export default function OrderCancelPage() {
     alert('취소 거부 되었습니다.');
   };
 
-  
   return (
     <>
       <div className="mb-5 flex items-center justify-between">
