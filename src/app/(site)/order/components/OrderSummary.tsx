@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { CartItem } from '../types/cart.types';
 import { useCartTotalAmount, useValidateCart } from '../hooks/useCart';
@@ -16,8 +16,17 @@ const OrderSummary = ({ allItems }: OrderSummaryProps) => {
   const checkedCount = allItems.filter((item) => item.isChecked).length;
 
   // 서버에서 총 금액 계산 (선택된 아이템만)
-  const { data: totalAmountData, isLoading: isLoadingAmount } =
-    useCartTotalAmount(false);
+  const {
+    data: totalAmountData,
+    isLoading: isLoadingAmount,
+    refetch,
+  } = useCartTotalAmount(false);
+
+  // 체크된 아이템이 변경될 때마다 금액 다시 조회
+  useEffect(() => {
+    console.log('checkedCount 변경됨:', checkedCount);
+    refetch();
+  }, [checkedCount, refetch]);
 
   const handleOrder = async () => {
     if (checkedCount === 0) {
@@ -48,9 +57,9 @@ const OrderSummary = ({ allItems }: OrderSummaryProps) => {
   };
 
   // 로딩 중이거나 데이터가 없으면 기본값 표시
-  const totalPrice = totalAmountData?.data.totalProductAmount || 0;
-  const shippingFee = totalAmountData?.data.totalShippingFee || 0;
-  const finalPrice = totalAmountData?.data.totalAmount || 0;
+  const totalPrice = totalAmountData?.data || 0;
+  const shippingFee = 3000; // 고정 배송비
+  const finalPrice = +totalPrice + +shippingFee;
 
   return (
     <>
@@ -59,15 +68,33 @@ const OrderSummary = ({ allItems }: OrderSummaryProps) => {
         <div className="flex justify-center gap-16 text-2xl">
           <div className="text-center">
             <div className="font-semibold mb-2">총 주문금액</div>
-            <div>{totalPrice.toLocaleString()}원</div>
+            <div>
+              {isLoadingAmount ? (
+                <span className="text-gray-400">계산 중...</span>
+              ) : (
+                `${totalPrice.toLocaleString()}원`
+              )}
+            </div>
           </div>
           <div className="text-center">
             <div className="font-semibold mb-2">총 배송비</div>
-            <div>{shippingFee.toLocaleString()}원</div>
+            <div>
+              {isLoadingAmount ? (
+                <span className="text-gray-400">계산 중...</span>
+              ) : (
+                `${shippingFee.toLocaleString()}원`
+              )}
+            </div>
           </div>
           <div className="text-center">
             <div className="font-semibold mb-2">총 결제금액</div>
-            <div>{finalPrice.toLocaleString()}원</div>
+            <div>
+              {isLoadingAmount ? (
+                <span className="text-gray-400">계산 중...</span>
+              ) : (
+                `${finalPrice.toLocaleString()}원`
+              )}
+            </div>
           </div>
         </div>
       </section>
@@ -76,7 +103,7 @@ const OrderSummary = ({ allItems }: OrderSummaryProps) => {
       <section className="flex justify-center">
         <button
           onClick={handleOrder}
-          disabled={checkedCount === 0}
+          disabled={checkedCount === 0 || isLoadingAmount}
           className="px-12 py-3 bg-primary text-white rounded font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           주문하기 ({checkedCount})
