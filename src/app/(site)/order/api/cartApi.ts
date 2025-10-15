@@ -167,14 +167,17 @@ export const updateCartItemQuantity = async (
 ): Promise<ApiResponse<void>> => {
   const body: UpdateQuantityRequest = { quantity };
 
-  const response = await fetch(`${API_BASE_URL}/api/cart/${cartId}/quantity`, {
-    method: 'put',
-    headers: {
-      'Content-Type': 'application/json',
+  const response = await fetch(
+    `${API_BASE_URL}/api/cart/${cartId}/quantity?quantity=${quantity}`,
+    {
+      method: 'put',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(body),
     },
-    credentials: 'include',
-    body: JSON.stringify(body),
-  });
+  );
 
   if (!response.ok) {
     throw new Error('수량 변경에 실패했습니다.');
