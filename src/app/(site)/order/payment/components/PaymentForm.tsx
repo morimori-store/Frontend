@@ -54,7 +54,7 @@ const PaymentForm = ({ cartItems }: PaymentFormProps) => {
   const createOrderMutation = useMutation({
     mutationFn: createOrder,
     onSuccess: (response) => {
-      router.push(`/order/complete?orderId=${response.data.orderId}`);
+      router.push(`/order/complete?orderId=${response.orderId}`);
     },
     onError: (error) => {
       alert(
@@ -149,6 +149,10 @@ const PaymentForm = ({ cartItems }: PaymentFormProps) => {
         productUuid: item.productUuid || item.productId?.toString() || '',
         quantity: item.quantity,
         optionInfo: item.optionInfo || '',
+        fundingId: item.fundingId !== undefined ? +item.fundingId : 0,
+        fundingPrice: item.fundingPrice || 0,
+        fundingStock: item.fundingStock || 0,
+        cartType: item.cartType,
       })),
       shippingAddress1: shippingData.address,
       shippingAddress2: shippingData.detailAddress,

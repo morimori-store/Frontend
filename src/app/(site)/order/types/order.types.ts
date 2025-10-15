@@ -4,6 +4,10 @@ export interface OrderItemRequest {
   productUuid: string;
   quantity: number;
   optionInfo: string;
+  fundingId: number;
+  fundingPrice: number;
+  fundingStock: number;
+  cartType: 'NORMAL' | 'FUNDING';
 }
 
 export interface CreateOrderRequest {

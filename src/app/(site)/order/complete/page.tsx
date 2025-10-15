@@ -25,7 +25,9 @@ async function getOrderDetail(orderId: string) {
     throw new Error('주문 정보 조회에 실패했습니다.');
   }
 
-  return response.json();
+  if (response.status === 200) {
+    return response.json();
+  }
 }
 
 interface OrderCompletePageProps {
