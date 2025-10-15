@@ -104,14 +104,7 @@ export default function ProductTabs({
         )}
 
         {selectedTab === 'shipping' && (
-          <CommunitySection
-            fundingId={fundingId}
-            authorId={authorId}
-            currentUserId={currentUserId}
-            currentUserName={currentUserName}
-            currentUserProfileImage={currentUserProfileImage}
-            communities={communities}
-          />
+          <CommunitySection fundingId={fundingId} communities={communities} />
         )}
       </div>
     </div>
