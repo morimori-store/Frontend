@@ -77,16 +77,13 @@ export async function uploadDescriptionImages(files: File[]): Promise<string[]> 
     {
       method: 'POST',
       body: form,
-      // FormData 사용 시 Content-Type은 브라우저가 자동 설정 
       headers: {
         accept: 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      // 세션/쿠키 기반 인증
       credentials: 'include',
     }
   );
-
 
   if (!res.ok) {
     let msg = '설명 이미지 업로드 실패';
@@ -94,23 +91,30 @@ export async function uploadDescriptionImages(files: File[]): Promise<string[]> 
       const j = await res.json();
       if (j?.msg) msg = j.msg;
     } catch {}
-    if (res.status === 401) {
-      throw new Error('로그인이 필요합니다.');
-    }
+    if (res.status === 401) throw new Error('로그인이 필요합니다.');
     throw new Error(msg);
   }
 
-
   type DescriptionUploadResponse = ApiResponse<Array<{ fileUrl: string }>>;
   const json = (await res.json()) as DescriptionUploadResponse;
-  const urls: string[] =
-    (json?.data ?? [])
-      .map((item) => item.fileUrl)
-      .filter((u): u is string => typeof u === 'string' && u.length > 0);
+
+  const urls: string[] = (json?.data ?? [])
+    .map((item) => {
+      const url = item.fileUrl;
+      // ✅ 상대경로 → 절대경로로 보정
+      if (url && !url.startsWith('http')) {
+        return `${process.env.NEXT_PUBLIC_API_BASE_URL}${
+          url.startsWith('/') ? url : `/${url}`
+        }`;
+      }
+      return url;
+    })
+    .filter((u): u is string => typeof u === 'string' && u.length > 0);
 
   if (!urls.length) throw new Error('설명 이미지 업로드 결과가 비어 있습니다.');
   return urls;
 }
+
 
 
 // (첨부파일) 이미지 업로드

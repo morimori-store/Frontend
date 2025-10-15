@@ -116,7 +116,17 @@ export type UploadType = 'MAIN' | 'ADDITIONAL' | 'THUMBNAIL' | 'DOCUMENT';
 
 export type UploadedImageInfo = {
   url: string;
-  type: UploadType;
+  type?: 'MAIN' | 'THUMBNAIL' | 'ADDITIONAL';  // optional로 바꾸기
+  fileType?: 'MAIN' | 'THUMBNAIL' | 'ADDITIONAL'; // ✅ 백엔드 응답 호환
+  s3Key: string;
+  originalFileName: string;
+};
+
+// 서버 응답 기준 ProductImage 타입 (상세조회용)
+export type ProductImageResponse = {
+  url: string;
+  type?: 'MAIN' | 'THUMBNAIL' | 'ADDITIONAL'; // type 또는 fileType 중 하나만 있을 수 있음
+  fileType?: 'MAIN' | 'THUMBNAIL' | 'ADDITIONAL';
   s3Key: string;
   originalFileName: string;
 };

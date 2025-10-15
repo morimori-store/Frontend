@@ -1650,7 +1650,7 @@ export default function ProductCreateModal({
                         title={status === 'uploading' ? '업로드 중에는 변경할 수 없어요' : undefined}
                       >
                         <option value="MAIN">대표 이미지</option>
-                        <option value="THUMBNAIL">썸네일</option>
+                        <option value="THUMBNAIL">추가이미지</option>
                       </select>
 
                       {/* 개별 삭제 */}
