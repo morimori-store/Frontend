@@ -2,14 +2,18 @@
 
 export interface CartItemResponse {
   cartId: number;
-  productId: number;
+  productId?: number; // optional로 변경
+  productUuid: string | null;
   productName: string;
   productImageUrl: string;
   price: number;
   quantity: number;
-  optionInfo: string;
+  optionInfo: string | null;
   isSelected: boolean;
-  cartType: string; // 'NORMAL' | 'FUNDING'
+  cartType: 'NORMAL' | 'FUNDING';
+  fundingId?: string; // 펀딩일 때만
+  fundingPrice?: number; // 펀딩일 때만
+  fundingStock?: number; // 펀딩일 때만
   createdAt: string;
 }
 
@@ -26,6 +30,14 @@ export interface CartApiResponse {
   resultCode: string;
   msg: string;
   data: CartDataResponse;
+}
+
+// ========== 선택된 장바구니 조회 응답 (배열) ==========
+
+export interface SelectedCartApiResponse {
+  resultCode: string;
+  msg: string;
+  data: CartItemResponse[]; // 배열로 직접 반환
 }
 
 // ========== UI 타입 ==========

@@ -1,5 +1,6 @@
 import {
   CartApiResponse,
+  SelectedCartApiResponse,
   UpdateQuantityRequest,
   ApiResponse,
   CartValidationApiResponse,
@@ -19,7 +20,7 @@ export const getCart = async (): Promise<CartApiResponse> => {
     headers: {
       'Content-Type': 'application/json',
     },
-    credentials: 'include', // 쿠키 포함
+    credentials: 'include',
   });
 
   console.log('응답 상태:', response.status, response.statusText);
@@ -38,7 +39,7 @@ export const getCart = async (): Promise<CartApiResponse> => {
 /**
  * 선택된 장바구니 아이템 조회
  */
-export const getCartSelected = async (): Promise<CartApiResponse> => {
+export const getCartSelected = async (): Promise<SelectedCartApiResponse> => {
   console.log('API 호출 URL:', `${API_BASE_URL}/api/cart/selected`);
 
   const response = await fetch(`${API_BASE_URL}/api/cart/selected`, {
@@ -165,17 +166,14 @@ export const updateCartItemQuantity = async (
   cartId: number,
   quantity: number,
 ): Promise<ApiResponse<void>> => {
-  const body: UpdateQuantityRequest = { quantity };
-
   const response = await fetch(
     `${API_BASE_URL}/api/cart/${cartId}/quantity?quantity=${quantity}`,
     {
-      method: 'put',
+      method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
       },
       credentials: 'include',
-      body: JSON.stringify(body),
     },
   );
 

@@ -5,16 +5,16 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
 import { useOrderStore } from '@/app/(site)/order/stores/orderStore';
-import { CartDataResponse } from '@/app/(site)/order/types/cart.types';
+import { CartItemResponse } from '@/app/(site)/order/types/cart.types';
 import { mapCartItemsResponseToCartItems } from '@/app/(site)/order/types/mapper';
 import { createOrder } from '@/app/(site)/order/api/orderApi';
 import { CreateOrderRequest } from '@/app/(site)/order/types/order.types';
 
 interface PaymentFormProps {
-  cartData: CartDataResponse;
+  cartItems: CartItemResponse[];
 }
 
-const PaymentForm = ({ cartData }: PaymentFormProps) => {
+const PaymentForm = ({ cartItems }: PaymentFormProps) => {
   const router = useRouter();
   const { shippingInfo, setShippingInfo } = useOrderStore();
 
@@ -101,10 +101,7 @@ const PaymentForm = ({ cartData }: PaymentFormProps) => {
   };
 
   // API 응답을 UI 타입으로 변환
-  const allCartItems = [
-    ...mapCartItemsResponseToCartItems(cartData.normalCartItems),
-    ...mapCartItemsResponseToCartItems(cartData.fundingCartItems),
-  ];
+  const allCartItems = mapCartItemsResponseToCartItems(cartItems);
 
   const calculateTotal = () => {
     const totalPrice = allCartItems.reduce(
@@ -135,8 +132,8 @@ const PaymentForm = ({ cartData }: PaymentFormProps) => {
       alert('주소를 입력해주세요.');
       return;
     }
-    if (!shippingData.phone) {
-      alert('연락처를 입력해주세요.');
+    if (!shippingData.phone || !shippingData.phone2 || !shippingData.phone3) {
+      alert('연락처를 모두 입력해주세요.');
       return;
     }
 
@@ -155,13 +152,11 @@ const PaymentForm = ({ cartData }: PaymentFormProps) => {
 
     // 주문 요청 데이터 생성
     const orderRequest: CreateOrderRequest = {
-      orderItems: cartData.normalCartItems
-        .concat(cartData.fundingCartItems)
-        .map((item) => ({
-          productUuid: item.productId.toString(), // productId를 UUID로 변환 필요할 수도
-          quantity: item.quantity,
-          optionInfo: item.optionInfo,
-        })),
+      orderItems: cartItems.map((item) => ({
+        productUuid: item.productUuid || item.productId?.toString() || '',
+        quantity: item.quantity,
+        optionInfo: item.optionInfo || '',
+      })),
       shippingAddress1: shippingData.address,
       shippingAddress2: shippingData.detailAddress,
       shippingZip: shippingData.zipCode,
@@ -354,7 +349,8 @@ const PaymentForm = ({ cartData }: PaymentFormProps) => {
                       alt={item.name}
                       width={150}
                       height={150}
-                    ></Image>
+                      className="w-full h-full object-cover"
+                    />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-500">
                       상품 이미지
@@ -365,9 +361,7 @@ const PaymentForm = ({ cartData }: PaymentFormProps) => {
                   <h3 className="font-semibold text-gray-800 mb-2">
                     {item.name}
                   </h3>
-                  <p className="text-gray-500 text-sm">
-                    옵션 : {item.option ?? '없음'}
-                  </p>
+                  <p className="text-gray-500 text-sm">옵션 : {item.option}</p>
                 </div>
                 <div className="text-right">
                   <div className="text-2xl font-bold">
