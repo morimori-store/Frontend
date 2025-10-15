@@ -84,12 +84,7 @@ export default async function FundingDetailPage({
   const currentUserProfileImage = currentUser?.profileImageUrl;
 
   // 이미지 배열 구성
-  const productImages = [
-    funding.imageUrl,
-    // '/productImages/funding1.png',
-    // '/productImages/funding2.png',
-    // '/productImages/funding3.png',
-  ];
+  const productImages = funding.images;
 
   return (
     <div className="min-h-screen">
