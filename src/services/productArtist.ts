@@ -19,6 +19,16 @@ export type ArtistProfileProduct = {
   sellingStatus: string;
 };
 
+export type FollowArtistResponse = {
+  followId: number;
+  artistId: number;
+  artistName: string;
+  profileImageUrl?: string;
+  followerCount: number;
+  followedAt: string;
+  isFollowing: boolean;
+};
+
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
 
@@ -88,7 +98,14 @@ export async function fetchArtistPublicProfile(artistId: number): Promise<Artist
     throw error;
   }
 
-  return json.data as ArtistPublicProfile;
+  const payload = json.data;
+
+  return {
+    ...payload,
+    followerCount: Number((payload as { followerCount?: unknown }).followerCount ?? 0),
+    totalSales: Number((payload as { totalSales?: unknown }).totalSales ?? 0),
+    productCount: Number((payload as { productCount?: unknown }).productCount ?? 0),
+  } as ArtistPublicProfile;
 }
 
 type ArtistProductsParams = {
@@ -141,4 +158,49 @@ export async function fetchArtistProfileProducts({
     page,
     size,
   };
+}
+
+export async function followArtist(
+  artistId: number,
+  options?: { accessToken?: string },
+): Promise<FollowArtistResponse> {
+  const headers: Record<string, string> = { accept: 'application/json' };
+  if (options?.accessToken) {
+    headers.Authorization = `Bearer ${options.accessToken}`;
+  }
+
+  const res = await fetch(`${API_BASE}/api/follows/artists/${artistId}`, {
+    method: 'POST',
+    headers,
+    credentials: 'include',
+  });
+
+  const json = (await res
+    .json()
+    .catch(() => ({}))) as { msg?: string; data?: FollowArtistResponse };
+
+  if (!res.ok) {
+    const message = (json && json.msg) || '작가 팔로우에 실패했습니다.';
+    const error: FetchError = new Error(message);
+    error.status = res.status;
+    throw error;
+  }
+
+  if (!json.data) {
+    const error: FetchError = new Error('작가 팔로우 응답이 올바르지 않습니다.');
+    error.status = res.status;
+    throw error;
+  }
+
+  const payload = json.data;
+  return {
+    followId: Number(payload.followId ?? 0),
+    artistId: Number(payload.artistId ?? artistId),
+    artistName: String(payload.artistName ?? ''),
+    profileImageUrl:
+      typeof payload.profileImageUrl === 'string' ? payload.profileImageUrl : undefined,
+    followerCount: Number(payload.followerCount ?? 0),
+    followedAt: String(payload.followedAt ?? ''),
+    isFollowing: Boolean(payload.isFollowing ?? true),
+  } satisfies FollowArtistResponse;
 }

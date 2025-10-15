@@ -1,33 +1,17 @@
 import Image from 'next/image';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import Button from '@/components/Button';
 import {
   fetchArtistProfileProducts,
   fetchArtistPublicProfile,
 } from '@/services/productArtist';
 import type { ArtistProfileProduct } from '@/services/productArtist';
 import type { ArtistPublicProfile } from '@/types/artistDashboard';
+import ArtistProfileHeader from './ArtistProfileHeader';
 
 export const dynamic = 'force-dynamic';
 
-function formatFollowers(count: number) {
-  return new Intl.NumberFormat('ko-KR').format(count);
-}
-
-function formatSince(value: string) {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-  const year = parsed.getFullYear();
-  const month = String(parsed.getMonth() + 1).padStart(2, '0');
-  const day = String(parsed.getDate()).padStart(2, '0');
-  return `${year}.${month}.${day}`;
-}
-
-export default async function Page({ params }: { params: { id: string } }) {
-  const rawId = params.id;
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  const { id: rawId } = await params;
   const artistId = Number(rawId);
 
   if (!Number.isInteger(artistId) || artistId < 0) {
@@ -63,26 +47,6 @@ export default async function Page({ params }: { params: { id: string } }) {
     products = [];
   }
 
-  const displayName = profile.artistName;
-  const followerLabel = formatFollowers(profile.followerCount);
-  const sinceLabel = formatSince(profile.createdAt);
-  const instagramHandle = profile.snsAccount?.trim() ?? '';
-  const instagramUsername = instagramHandle.replace(/^@/, '');
-  const hasInstagram = Boolean(instagramUsername);
-  const mainProducts = profile.mainProducts
-    ? profile.mainProducts
-        .split(',')
-        .map((item) => item.trim())
-        .filter(Boolean)
-    : [];
-
-  const totalSales = Number.isFinite(profile.totalSales)
-    ? new Intl.NumberFormat('ko-KR').format(profile.totalSales)
-    : '-';
-  const productCount = Number.isFinite(profile.productCount)
-    ? new Intl.NumberFormat('ko-KR').format(profile.productCount)
-    : '-';
-
   const intl = new Intl.NumberFormat('ko-KR');
 
   return (
@@ -97,62 +61,11 @@ export default async function Page({ params }: { params: { id: string } }) {
         }}
       >
         <div className="mx-auto w-full max-w-[1200px] px-6">
-          <section className="rounded-3xl">
-            <div className="flex flex-col items-center gap-6 text-center md:flex-row md:text-left">
-              <div className="relative h-32 w-32 flex-shrink-0 overflow-hidden rounded-full bg-[var(--color-gray-100)]">
-                <Image
-                  src={profile.profileImageUrl || '/profile-placeholder.svg'}
-                  alt={`${displayName} 프로필 이미지`}
-                  fill
-                  sizes="128px"
-                  className="object-cover"
-                  priority
-                  unoptimized={!profile.profileImageUrl}
-                />
-              </div>
-              <div className="flex-1">
-                <div className="flex justify-between items-center">
-                  <h1 className="flex flex-wrap items-center justify-center gap-3 text-2xl font-bold md:justify-start">
-                    {displayName}
-                    {hasInstagram ? (
-                      <Link
-                        href={`https://www.instagram.com/${instagramUsername}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-base font-medium text-[#E4405F] hover:underline"
-                      >
-                        <Image
-                          width={50}
-                          height={50}
-                          src="/icons/instagram.png"
-                          alt="Instagram"
-                        />
-                      </Link>
-                    ) : null}
-                  </h1>
-                  <Button variant="primary">팔로우하기</Button>
-                </div>
-
-                <div className="mt-4 flex flex-wrap items-center justify-center gap-4 text-sm md:justify-start">
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">팔로워</span>
-                    <strong className="text-3xl font-bold">
-                      {followerLabel}
-                    </strong>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">since</span>
-                    <strong className="text-3xl font-bold">{sinceLabel}</strong>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <h1 className="mt-8 text-2xl font-bold">작가 소개</h1>
-            <p className="mt-8 whitespace-pre-line text-base leading-relaxed">
-              {profile.description || '소개 정보가 없습니다.'}
-            </p>
-          </section>
+          <ArtistProfileHeader
+            key={Number(profile.artistId) || artistId}
+            profile={profile}
+            artistId={artistId}
+          />
 
           <section className="mt-12">
             <header className="mb-6 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
