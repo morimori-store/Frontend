@@ -127,12 +127,6 @@ export interface CreateFundingResponse {
 }
 
 //======== 펀딩 상세 페이지 =============
-export interface FundingDetailAuthor {
-  id: number;
-  name: string;
-  profileImageUrl: string;
-  artistDescription: string;
-}
 
 export interface FundingOption {
   id: number;
@@ -150,11 +144,33 @@ export interface FundingNews {
   createDate: string;
 }
 
+export interface FundingDetailResponse {
+  resultCode: string;
+  msg: string;
+  data: FundingDetail;
+}
+
+// 변경된 이미지 타입을 위한 인터페이스
+export interface FundingImage {
+  fileUrl: string;
+  fileType: string;
+}
+
+// 'author' 객체에 email 필드 추가
+export interface FundingDetailAuthor {
+  id: number;
+  name: string;
+  email: string; // email 필드 추가
+  profileImageUrl: string;
+  artistDescription: string;
+}
+
+// 메인 'FundingDetail' 인터페이스 업데이트
 export interface FundingDetail {
   id: number;
   title: string;
   description: string;
-  imageUrl: string;
+  images: FundingImage[]; // 'imageUrl'을 'images' 배열로 변경
   categoryName: string;
   targetAmount: number;
   price: number;
@@ -170,12 +186,6 @@ export interface FundingDetail {
   author: FundingDetailAuthor;
   news: FundingNews[];
   communities: FundingCommunity[];
-}
-
-export interface FundingDetailResponse {
-  resultCode: string;
-  msg: string;
-  data: FundingDetail;
 }
 
 export interface FundingCommunity {
