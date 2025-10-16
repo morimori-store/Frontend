@@ -3,8 +3,8 @@
 import { useState, useMemo, type Key, useEffect, useRef } from 'react';
 import Button from '@/components/Button';
 import ProductCreateModal from '@/components/artist/ProductCreateModal';
-import { ProductCreatePayload, ProductRow } from '@/types/product';
-import { deleteProduct, fetchArtistProducts, getProducts } from '@/services/products';
+import { AdditionalProductResponse, OptionResponse, ProductCreatePayload, ProductRow, TagResponse } from '@/types/product';
+import { deleteProduct, fetchArtistProducts, fetchProductDetail, getProducts } from '@/services/products';
 import SearchIcon from '@/assets/icon/search.svg';
 import ArtistDataTable, { ArtistTableColumn, SortDirection } from '@/components/artist/ArtistDataTable';
 
@@ -21,7 +21,6 @@ type RowEx = ProductRow & {
 type ArtistProductItem = {
   productUuid?: string;
   uuid?: string;
-  productUUID?: string;
   product?: { uuid?: string };
   productId?: string | number;
   id?: string | number;
@@ -194,7 +193,7 @@ export default function ProductsPage() {
         const mapped: RowEx[] = content.map((p, idx) => {
           // 가능한 후보에서 uuid 추출
           let productUuid: string | undefined =
-            p.productUuid ?? p.uuid ?? p.productUUID ?? p.product?.uuid ?? undefined;
+            p.productUuid ?? p.uuid ?? p.productUuid ?? p.product?.uuid ?? undefined;
 
           const productId: string | undefined =
             p.productId != null
@@ -229,12 +228,16 @@ export default function ProductsPage() {
 
           // 스냅샷 우선 없으면 서버 상태
           const snap = productId ? snapshotsRef.current[productId] : undefined;
-          const rawCode =
-            p.sellingStatus ??
-            p.status ??
-            (typeof p.selling === 'boolean' ? (p.selling ? 'SELLING' : 'STOPPED') : 'SELLING');
-          let code = String(rawCode).toUpperCase();
-          if (snap) code = computeStatusFromPayload(snap);
+          // 서버값 
+          let code = (p.sellingStatus ?? p.status ?? '').toUpperCase();
+          
+          if (!code && snap) {
+            code = computeStatusFromPayload(snap);
+          }
+
+          if (!code) code = 'SELLING';
+
+          //  라벨 변환
           const status = STATUS_LABEL[code] ?? code;
 
           return {
@@ -243,7 +246,7 @@ export default function ProductsPage() {
             author: p.artist?.name ?? p.brandName ?? '내 브랜드',
             status,
             createdAt,
-            productUuid,
+            productUuid: p.productUuid,
             productId,
             payloadSnapshot: productId ? snapshotsRef.current[productId] : undefined,
           };
@@ -277,11 +280,19 @@ export default function ProductsPage() {
 
   // 생성 완료
   const handleCreated = ({ productUuid, payload }: { productUuid: string; payload: ProductCreatePayload }) => {
-    const nameKey = `내 브랜드|||${payload.title?.trim() ?? ''}`;
-    if (payload.title?.trim()) {
-      uuidByNameRef.current[nameKey] = productUuid;
-      saveJson(UUID_BY_NAME_KEY, uuidByNameRef.current);
-    }
+
+    setRows((prev) => [
+   {
+     id: makeRowId(1, 0),
+     name: payload.title,
+     author: payload.brand,
+     status: '판매중',
+     createdAt: new Date().toLocaleDateString('en-CA'),
+     productUuid, // 서버가 준 UUID
+     payloadSnapshot: payload,
+   },
+   ...prev,
+ ]);
 
     const nextTotal = totalElements + 1;
     const nextPages = Math.max(1, Math.ceil(nextTotal / size));
@@ -339,19 +350,76 @@ export default function ProductsPage() {
 
   // 행 클릭
   const handleRowClick = async (row: RowEx) => {
-    const uuid = await resolveUuidForRow(row);
+  const uuid = await resolveUuidForRow(row);
+  if (!uuid) {
+    alert('이 상품의 UUID를 찾을 수 없습니다.');
+    return;
+  }
 
-    // 스냅샷 보강
-    let payloadSnapshot = row.payloadSnapshot;
-    if (!payloadSnapshot && row.productId) {
-      const cache = loadCache();
-      payloadSnapshot = cache[row.productId];
-    }
+  try {
+    // 상품 상세 불러오기
+    const detail = await fetchProductDetail(uuid);
 
-    setEditingRow({ ...row, productUuid: uuid, payloadSnapshot });
+    // 상세 응답 → 폼에 맞게 변환
+    const payload: ProductCreatePayload = {
+  brand: detail.brandName ?? '',
+  title: detail.name ?? '',
+  modelName: detail.essentialInfo?.productModelName ?? '',
+  category1: '',
+  category2: '',
+  size: detail.essentialInfo?.size ?? '',
+  material: detail.essentialInfo?.material ?? '',
+  origin: detail.essentialInfo?.origin ?? '',
+  price: detail.price ?? 0,
+  discountRate: detail.discountRate ?? 0,
+  stock: detail.stock ?? 0,
+  minQty: detail.minQuantity ?? 1,
+  maxQty: detail.maxQuantity ?? 1,
+  bundleShipping: detail.bundleShippingAvailable ?? false,
+  shipping: {
+    type:
+      detail.deliveryType === 'CONDITIONAL_FREE'
+        ? 'CONDITIONAL'
+        : detail.deliveryType === 'PAID'
+        ? 'PAID'
+        : 'FREE',
+    fee: detail.deliveryCharge ?? 0,
+    freeThreshold: detail.conditionalFreeAmount ?? null,
+    jejuExtraFee: detail.additionalShippingCharge ?? 0,
+  },
+  plannedSale:
+    detail.isPlanned && detail.sellingStartDate
+      ? { startAt: detail.sellingStartDate, endAt: detail.sellingEndDate ?? null }
+      : null,
+
+  tags: detail.tags?.map((t: TagResponse) => t.name).filter(Boolean) as string[] ?? [],
+  options:
+    detail.options?.map((o: OptionResponse) => ({
+      id: crypto.randomUUID(),
+      name: o.optionName,
+      stock: o.optionStock,
+      extraPrice: o.optionAdditionalPrice,
+    })) ?? [],
+  addons:
+    detail.additionalProducts?.map((a: AdditionalProductResponse) => ({
+      id: crypto.randomUUID(),
+      name: a.name,
+      stock: a.stock,
+      extraPrice: a.price,
+    })) ?? [],
+
+  certification: detail.essentialInfo?.certification ?? false,
+  description: detail.description ?? '',
+};
+
+    // 모달 열기
+    setEditingRow({ ...row, productUuid: uuid, payloadSnapshot: payload });
     setMode('edit');
     setOpenModal(true);
-  };
+  } catch (err) {
+    alert((err as Error).message || '상품 상세 조회 실패');
+  }
+};
 
   // 상단 - 선택 수정
   const handleTopEdit = () => {

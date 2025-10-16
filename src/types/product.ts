@@ -63,7 +63,8 @@ export type ProductDetail = {
   additionalShippingCharge: number;
   options: OptionResponse[];
   additionalProducts: AdditionalProductResponse[];
-  images: ProductImage[];
+  images: UploadedImageInfo[];
+  primaryImageUrl?: string | null;
   essentialInfo: ProductEssentialInfo;
   stock: number;
   description: string;
@@ -74,6 +75,8 @@ export type ProductDetail = {
   isPlanned: boolean;
   isRestock: boolean;
   tags: TagResponse[];
+  sellingStartDate?: string | null;
+  sellingEndDate?: string | null;
 };
 
 
@@ -113,7 +116,17 @@ export type UploadType = 'MAIN' | 'ADDITIONAL' | 'THUMBNAIL' | 'DOCUMENT';
 
 export type UploadedImageInfo = {
   url: string;
-  type: UploadType;
+  type?: 'MAIN' | 'THUMBNAIL' | 'ADDITIONAL';  // optional로 바꾸기
+  fileType?: 'MAIN' | 'THUMBNAIL' | 'ADDITIONAL'; // ✅ 백엔드 응답 호환
+  s3Key: string;
+  originalFileName: string;
+};
+
+// 서버 응답 기준 ProductImage 타입 (상세조회용)
+export type ProductImageResponse = {
+  url: string;
+  type?: 'MAIN' | 'THUMBNAIL' | 'ADDITIONAL'; // type 또는 fileType 중 하나만 있을 수 있음
+  fileType?: 'MAIN' | 'THUMBNAIL' | 'ADDITIONAL';
   s3Key: string;
   originalFileName: string;
 };
@@ -217,12 +230,23 @@ export type ProductCreatePayload = {
     freeThreshold: number | null;
     jejuExtraFee: number;
   };
-  plannedSale: { startAt: string; endAt: string } | null;
+  plannedSale?: {
+    startAt: string;
+    endAt: string | null;   // ✅ null 허용으로 수정
+  } | null;
   tags: TagUI[];
   options: ProductOptionUI[];
   addons: ProductAddonUI[];
   certification:boolean;
-  bizInfo?: { companyName?: string; bizNumber?: string; ceoName?: string }; // 서버 전송 X
+  bizInfo?: {
+    businessName?: string;
+    bizNumber?: string;
+    ceoName?: string;
+    asManager?: string;              // ✅ 추가
+    email?: string;
+    businessAddress?: string;
+    telecomSalesNumber?: string;
+  }; // 서버 전송 X
   description: string;
   attachments?: File[]; // 서버 전송 X
 };

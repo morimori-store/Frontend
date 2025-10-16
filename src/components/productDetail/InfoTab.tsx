@@ -39,10 +39,8 @@ export default function InfoTab({ productId, product }: Props) {
       {/* 탭 컨텐츠 */}
       <div className="max-w-[1200px] mx-auto">
         {activeTab === '상품 정보' && <ProductInfo product={product} />}
-        {activeTab === '작가 정보' && (
-          <ArtistInfo productUuid={product?.productUuid} />
-        )}
-        {activeTab === '상품 Q&A' && <QuestionInfo />}
+        {activeTab === '작가 정보' && <ArtistInfo productUuid={product?.productUuid} />}
+        {activeTab === '상품 Q&A' && <QuestionInfo productUuid={product?.productUuid} />}
         {activeTab === '리뷰' && <ReviewInfo productId={productId} />}
       </div>
     </div>
