@@ -12,28 +12,47 @@ type Props = {
   images?: ProductImageLike[];
 };
 
-const allowedTypes = new Set(['MAIN', 'THUMBNAIL', 'ADDITIONAL']);
+const allowedTypes = new Set(['MAIN', 'ADDITIONAL']);
 
 const resolveSrc = (img: ProductImageLike): string | null => {
-  return (
-    toAbsoluteImageUrl(img.url ?? img.fileUrl ?? '') ??
-    toAbsoluteImageUrl(img.fileUrl ?? '') ??
-    null
-  );
+  const raw = (img.url ?? '').trim();
+  if (!raw) return null;
+  return toAbsoluteImageUrl(raw) ?? null;
+};
+
+const dedupKeyFrom = (img: ProductImageLike, resolvedUrl: string | null): string | null => {
+  if (img.s3Key?.trim()) return img.s3Key.trim();
+  if (img.originalFileName?.trim()) return img.originalFileName.trim();
+  if (!resolvedUrl) return null;
+  // remove protocol so https/http 같은 주소는 동일하게 인식
+  return resolvedUrl.replace(/^https?:/, '');
 };
 
 export default function ProductImages({ images }: Props) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   const candidates = useMemo(() => {
+    const seen = new Set<string>();
     return (
       images
-        ?.filter((img) => allowedTypes.has((img.type ?? img.fileType) ?? ''))
-        .map((img) => ({
-          ...img,
-          displayUrl: resolveSrc(img),
-        }))
-        .filter((img) => !!img.displayUrl) ?? []
+        ?.filter((img) => {
+          const type = (img.type ?? img.fileType) ?? '';
+          const key = img.s3Key ?? '';
+          if (!allowedTypes.has(type)) return false;
+          if (key.includes('/thumbnail-')) return false;
+          return true;
+        })
+        .map((img) => {
+          const displayUrl = resolveSrc(img);
+          const dedupKey = dedupKeyFrom(img, displayUrl);
+          return { ...img, displayUrl, dedupKey };
+        })
+        .filter((img): img is typeof img & { displayUrl: string; dedupKey: string } => {
+          if (!img.displayUrl || !img.dedupKey) return false;
+          if (seen.has(img.dedupKey)) return false;
+          seen.add(img.dedupKey);
+          return true;
+        }) ?? []
     );
   }, [images]);
 
@@ -60,6 +79,10 @@ export default function ProductImages({ images }: Props) {
   const goToImage = (index: number) => setCurrentImageIndex(index);
 
   const mainImage = candidates[currentImageIndex];
+  const thumbnails = useMemo(
+    () => candidates.map((img, index) => ({ img, index })).slice(0, 4),
+    [candidates],
+  );
 
   return (
     <div className="space-y-4">
@@ -103,9 +126,9 @@ export default function ProductImages({ images }: Props) {
         </button>
 
         <div className="flex space-x-2 justify-center w-[460px]">
-          {candidates.slice(0, 4).map((image, index) => (
+          {thumbnails.map(({ img, index }) => (
             <div
-              key={`${image.displayUrl}-${index}`}
+              key={`${img.displayUrl}-${index}`}
               className={`relative bg-gray-200 rounded-lg overflow-hidden cursor-pointer border-2 transition-all w-[111px] h-[111px] ${
                 index === currentImageIndex
                   ? 'border-primary shadow-md'
@@ -113,9 +136,9 @@ export default function ProductImages({ images }: Props) {
               }`}
               onClick={() => goToImage(index)}
             >
-              {image.displayUrl ? (
+              {img.displayUrl ? (
                 <Image
-                  src={image.displayUrl}
+                  src={img.displayUrl}
                   alt={`상품 이미지 ${index + 1}`}
                   fill
                   className="object-cover"
