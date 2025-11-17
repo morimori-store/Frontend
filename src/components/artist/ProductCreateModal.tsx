@@ -582,31 +582,11 @@ export default function ProductCreateModal({
   };
 
   // (에디터) 설명 이미지 업로드
-  const handleUploadDescImage = async (fileOrFiles: File | File[] | FileList): Promise<string> => {
-    const files: File[] = Array.isArray(fileOrFiles)
-      ? fileOrFiles
-      : fileOrFiles instanceof FileList
-      ? Array.from(fileOrFiles)
-      : [fileOrFiles];
-
-    let urls: string[] = [];
-    try {
-      urls = await uploadDescriptionImages(files);
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : '설명 이미지 업로드에 실패했습니다.';
-      alert(msg);
-      throw e;
-    }
-
-    if (!urls.length) throw new Error('설명 이미지 URL을 받지 못했습니다.');
-
-    setEditorValue((prev) => {
-      const imgs = urls.map((u) => `<p><img src="${u}" alt="" /></p>`).join('');
-      return (prev ?? '') + imgs;
-    });
-
-    return urls[0];
-  };
+  const handleUploadDescImage = async (file: File) : Promise<string> => {
+    const [uploaded] = await uploadDescriptionImages([file]);
+    if(!uploaded) throw new Error('설명 이미지 URL을 받지 못했습니다.');
+    return uploaded;
+  }
 
   // 폼 payload
   const buildPayload = (): ProductCreatePayload => ({
