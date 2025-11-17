@@ -20,7 +20,10 @@ const resolveSrc = (img: ProductImageLike): string | null => {
   return toAbsoluteImageUrl(raw) ?? null;
 };
 
-const dedupKeyFrom = (img: ProductImageLike, resolvedUrl: string | null): string | null => {
+const dedupKeyFrom = (
+  img: ProductImageLike,
+  resolvedUrl: string | null,
+): string | null => {
   if (img.s3Key?.trim()) return img.s3Key.trim();
   if (img.originalFileName?.trim()) return img.originalFileName.trim();
   if (!resolvedUrl) return null;
@@ -36,7 +39,7 @@ export default function ProductImages({ images }: Props) {
     return (
       images
         ?.filter((img) => {
-          const type = (img.type ?? img.fileType) ?? '';
+          const type = img.type ?? img.fileType ?? '';
           const key = img.s3Key ?? '';
           if (!allowedTypes.has(type)) return false;
           if (key.includes('/thumbnail-')) return false;
@@ -47,12 +50,16 @@ export default function ProductImages({ images }: Props) {
           const dedupKey = dedupKeyFrom(img, displayUrl);
           return { ...img, displayUrl, dedupKey };
         })
-        .filter((img): img is typeof img & { displayUrl: string; dedupKey: string } => {
-          if (!img.displayUrl || !img.dedupKey) return false;
-          if (seen.has(img.dedupKey)) return false;
-          seen.add(img.dedupKey);
-          return true;
-        }) ?? []
+        .filter(
+          (
+            img,
+          ): img is typeof img & { displayUrl: string; dedupKey: string } => {
+            if (!img.displayUrl || !img.dedupKey) return false;
+            if (seen.has(img.dedupKey)) return false;
+            seen.add(img.dedupKey);
+            return true;
+          },
+        ) ?? []
     );
   }, [images]);
 
@@ -79,10 +86,10 @@ export default function ProductImages({ images }: Props) {
   const goToImage = (index: number) => setCurrentImageIndex(index);
 
   const mainImage = candidates[currentImageIndex];
-  const thumbnails = useMemo(
-    () => candidates.map((img, index) => ({ img, index })).slice(0, 4),
-    [candidates],
-  );
+  const thumbnails = candidates
+    .map((img, index) => ({ img, index }))
+    .filter(({ index }) => index !== currentImageIndex)
+    .slice(0, 4);
 
   return (
     <div className="space-y-4">
