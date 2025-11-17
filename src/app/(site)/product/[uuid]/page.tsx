@@ -2,14 +2,13 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import Image from 'next/image';
 import Star from '@/assets/icon/star.svg';
 
 import InfoTab from '@/components/productDetail/InfoTab';
 import ProductOptions from '@/components/productDetail/ProductOptions';
+import ProductImages from '@/components/productDetail/ProductImages';
 import { fetchProductDetail } from '@/services/products';
 import type { ProductDetail, ProductImageResponse } from '@/types/product';
-import { toAbsoluteImageUrl } from '@/utils/image'; 
 
 function formatWon(n?: number | null) {
   return typeof n === 'number' && Number.isFinite(n)
@@ -44,22 +43,6 @@ export default function Page() {
     };
   }, [uuid]);
 
-  const mainImages = useMemo(() => {
-  const imgs = (data?.images ?? []) as ProductImageResponse[];
-  return imgs.filter((img) => {
-    const type = img.type ?? img.fileType;
-    return type === 'MAIN' || type === 'ADDITIONAL' || type === 'THUMBNAIL';
-  });
-}, [data]);
-
-  const hero = useMemo(() => {
-  const imgs = data?.images ?? [];
-  const pick = (imgs.find((i) => (i.type ?? i.fileType) === 'MAIN'))
-    ?? (imgs.find((i) => (i.type ?? i.fileType) === 'THUMBNAIL'))
-    ?? imgs[0];
-  return pick;
-}, [data]);
-
   const hasDiscount = (data?.discountRate ?? 0) > 0;
 
   const shippingText = useMemo(() => {
@@ -92,35 +75,19 @@ export default function Page() {
     <div className="pb-4">
       <main className="max-w-[1200px] mx-auto px-6 py-10 grid grid-cols-1 md:grid-cols-2 gap-10">
         {/* 이미지 영역 */}
-<section>
-  {loading ? (
-    <div className="w-[500px] h-[550px] flex items-center justify-center border rounded">
-      불러오는 중…
-    </div>
-  ) : error ? (
-    <div className="w-[500px] h-[550px] flex items-center justify-center border rounded text-rose-600">
-      {error}
-    </div>
-  ) : hero ? (
-    <div className="relative w-[500px] h-[550px] rounded overflow-hidden">
-      <Image
-        src={toAbsoluteImageUrl(hero.url) ?? '/productexample1.svg'}
-        alt={data?.name ?? '상품 이미지'}
-        fill
-        className="object-cover"
-        sizes="(min-width: 768px) 50vw, 100vw"
-        priority
-      />
-    </div>
-  ) : (
-    <Image
-      src="/productexample1.svg"
-      alt="상품 이미지"
-      width={500}
-      height={550}
-    />
-  )}
-</section>
+        <section>
+          {loading ? (
+            <div className="w-[500px] h-[550px] flex items-center justify-center border rounded">
+              불러오는 중…
+            </div>
+          ) : error ? (
+            <div className="w-[500px] h-[550px] flex items-center justify-center border rounded text-rose-600">
+              {error}
+            </div>
+          ) : (
+            <ProductImages images={data?.images as ProductImageResponse[]} />
+          )}
+        </section>
 
         {/* 정보 영역 */}
         <section>
