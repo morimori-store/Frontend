@@ -68,7 +68,15 @@ export default function NoticeEditor({
     async (file: File) => {
       if (!editor) return;
       const url = await onUploadImage(file); // presigned 업로드 등
-      editor.chain().focus().setImage({ src: url, alt: file.name }).run();
+
+      editor
+        .chain()
+        .focus()
+        .insertContent([
+          { type: 'image', attrs: { src: url, alt: file.name }},
+          { type: 'paragraph'},
+        ])
+        .run();
     },
     [editor, onUploadImage],
   );
@@ -145,9 +153,12 @@ export default function NoticeEditor({
           type="file"
           accept="image/*"
           hidden
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) insertImage(f);
+          multiple
+          onChange={async (e) => {
+            const files = Array.from(e.target.files ?? []);
+            for (const file of files) {
+              await insertImage(file); // 업로드 -> 삽입 순차 처리
+            }
             e.currentTarget.value = '';
           }}
         />
@@ -165,7 +176,7 @@ export default function NoticeEditor({
         className="bg-white p-3 focus:outline-none [&_*]:leading-7"
         style={{
           minHeight,
-          maxHeight,                
+          maxHeight,
           overflowY: maxHeight ? 'auto' : undefined, // 최대 높이 있을 때만 스크롤
         }}
       />

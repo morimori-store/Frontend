@@ -42,10 +42,10 @@ const normalizeTagName = (s?: string) => (s ?? '').trim().toLowerCase();
 // 파일 고유키
 const fileKey = (f: File) => `${f.name}-${f.size}-${f.lastModified}`;
 
-// 허용 타입만: MAIN | THUMBNAIL
-type AllowedType = Extract<UploadType, 'MAIN' | 'THUMBNAIL'>;
+// 허용 타입만: MAIN | ADDITIONAL
+type AllowedType = Extract<UploadType, 'MAIN' | 'ADDITIONAL'>;
 const asAllowed = (t: UploadType | undefined): AllowedType =>
-  t === 'MAIN' ? 'MAIN' : 'THUMBNAIL';
+  t === 'MAIN' ? 'MAIN' : 'ADDITIONAL';
 
 // 파일 타입 배열에서 MAIN 인덱스 찾기
 const findMainIndex = (types: UploadType[]) => types.findIndex((t) => t === 'MAIN');
@@ -498,15 +498,15 @@ export default function ProductCreateModal({
     const nextFiles = [...files, ...dedup];
     setFiles(nextFiles);
 
-    // 타입 기본값: 첫 파일만 MAIN, 나머지는 THUMBNAIL
+    // 타입 기본값: 첫 파일만 MAIN, 나머지는 ADDITIONAL
     const defaultsForNew: AllowedType[] = dedup.map((_, i) =>
-      files.length === 0 && i === 0 ? 'MAIN' : 'THUMBNAIL'
+      files.length === 0 && i === 0 ? 'MAIN' : 'ADDITIONAL'
     );
 
-    // 기존에 이미 MAIN이 있었다면 새로 들어온 것들은 모두 THUMBNAIL
+    // 기존에 이미 MAIN이 있었다면 새로 들어온 것들은 모두 ADDITIONAL
     const alreadyMainIdx = findMainIndex(fileTypes);
     if (alreadyMainIdx >= 0) {
-      for (let i = 0; i < defaultsForNew.length; i++) defaultsForNew[i] = 'THUMBNAIL';
+      for (let i = 0; i < defaultsForNew.length; i++) defaultsForNew[i] = 'ADDITIONAL';
     }
 
     setFileTypes((prev) => [...prev, ...defaultsForNew]);
@@ -523,21 +523,7 @@ export default function ProductCreateModal({
   const uploaded = await uploadProductImages(dedup, defaultsForNew);
 
   // ✅ 기존 타입과 겹치는 이미지는 교체 (누적 X)
-  setUploadedImages((prev) => {
-    const next = [...prev];
-
-    for (const newImg of uploaded) {
-      // 같은 타입이 이미 있으면 교체
-      const existingIndex = next.findIndex((img) => img.type === newImg.type);
-      if (existingIndex !== -1) {
-        next[existingIndex] = newImg;
-      } else {
-        next.push(newImg);
-      }
-    }
-
-    return next;
-  });
+  setUploadedImages((prev) => [...prev, ...uploaded]);
 
   // 파일 → s3Key 매핑 저장
   setFileS3Map((prev) => {
@@ -581,9 +567,9 @@ export default function ProductCreateModal({
         return updated;
       }
 
-      // allowed === 'THUMBNAIL'
+      // allowed === 'ADDITIONAL'
       const isTurningOffLastMain = updated[index] === 'MAIN';
-      updated[index] = 'THUMBNAIL';
+      updated[index] = 'ADDITIONAL';
 
       if (isTurningOffLastMain) {
         // 다른 파일 중 첫 번째를 MAIN으로 승격 (없으면 그대로 두고, 저장 시 검증)
@@ -596,31 +582,11 @@ export default function ProductCreateModal({
   };
 
   // (에디터) 설명 이미지 업로드
-  const handleUploadDescImage = async (fileOrFiles: File | File[] | FileList): Promise<string> => {
-    const files: File[] = Array.isArray(fileOrFiles)
-      ? fileOrFiles
-      : fileOrFiles instanceof FileList
-      ? Array.from(fileOrFiles)
-      : [fileOrFiles];
-
-    let urls: string[] = [];
-    try {
-      urls = await uploadDescriptionImages(files);
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : '설명 이미지 업로드에 실패했습니다.';
-      alert(msg);
-      throw e;
-    }
-
-    if (!urls.length) throw new Error('설명 이미지 URL을 받지 못했습니다.');
-
-    setEditorValue((prev) => {
-      const imgs = urls.map((u) => `<p><img src="${u}" alt="" /></p>`).join('');
-      return (prev ?? '') + imgs;
-    });
-
-    return urls[0];
-  };
+  const handleUploadDescImage = async (file: File) : Promise<string> => {
+    const [uploaded] = await uploadDescriptionImages([file]);
+    if(!uploaded) throw new Error('설명 이미지 URL을 받지 못했습니다.');
+    return uploaded;
+  }
 
   // 폼 payload
   const buildPayload = (): ProductCreatePayload => ({
@@ -1641,7 +1607,7 @@ export default function ProductCreateModal({
                         {status === 'idle' && '대기'}
                       </span>
 
-                      {/* 타입 선택 — MAIN/THUMBNAIL만 */}
+                      {/* 타입 선택 — MAIN/ADDITIONAL만 */}
                       <select
                         value={asAllowed(fileTypes[idx])}
                         onChange={(e) => handleChangeFileType(idx, e.target.value as AllowedType)}
@@ -1650,7 +1616,7 @@ export default function ProductCreateModal({
                         title={status === 'uploading' ? '업로드 중에는 변경할 수 없어요' : undefined}
                       >
                         <option value="MAIN">대표 이미지</option>
-                        <option value="THUMBNAIL">추가이미지</option>
+                        <option value="ADDITIONAL">추가이미지</option>
                       </select>
 
                       {/* 개별 삭제 */}
@@ -1669,7 +1635,7 @@ export default function ProductCreateModal({
               </div>
 
               <p className="inline-block text-xs text-gray-500 bg-primary-20 p-1 my-2">
-                * 파일을 선택하면 자동으로 업로드됩니다. (대표 이미지 1개, 나머지 썸네일)
+                * 파일을 선택하면 자동으로 업로드됩니다. (대표 이미지 1개, 나머지는 추가이미지)
               </p>
             </div>
           )}
