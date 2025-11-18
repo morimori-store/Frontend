@@ -13,11 +13,19 @@ const nextConfig: NextConfig = {
 
   // 외부 이미지 도메인 허용 (S3)
   images: {
+    dangerouslyAllowSVG: true,
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
     remotePatterns: [
       {
         protocol: 'https',
         hostname: 'morimori-files-bucket.s3.ap-northeast-2.amazonaws.com',
       },
+      {
+        protocol: 'https',
+        hostname: 'morimori-admin-bucket.s3.ap-northeast-2.amazonaws.com',
+        pathname: '/**',
+      },
+
       {
         protocol: 'https',
         hostname: 'i.namu.wiki', //펀딩 테스트용 데이터 이미지
@@ -31,6 +39,12 @@ const nextConfig: NextConfig = {
         hostname: 'cdn.example.com',
       },
       { protocol: 'https', hostname: 's3.mori-mori.store', pathname: '/**' },
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+        port: '3000',
+        pathname: '/**',
+      },
     ],
   },
 };

@@ -89,6 +89,12 @@ export type ProductListItem = {
   discountRate: number;
   discountPrice: number;
   rating: number | null;
+  thumbnailUrl?: string;
+};
+
+export type ProductListApiItem = ProductListItem & {
+  thumbnailUrl?: string | null;
+  primaryImageUrl?: string | null;
 };
 
 export type ProductListData = {
