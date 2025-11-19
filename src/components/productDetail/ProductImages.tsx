@@ -20,6 +20,9 @@ const resolveSrc = (img: ProductImageLike): string | null => {
   return toAbsoluteImageUrl(raw) ?? null;
 };
 
+const isThumbnailImage = (img: ProductImageLike): boolean =>
+  Boolean((img as { isThumbnail?: boolean }).isThumbnail);
+
 const dedupKeyFrom = (
   img: ProductImageLike,
   resolvedUrl: string | null,
@@ -86,10 +89,11 @@ export default function ProductImages({ images }: Props) {
   const goToImage = (index: number) => setCurrentImageIndex(index);
 
   const mainImage = candidates[currentImageIndex];
-  const thumbnails = candidates
-    .map((img, index) => ({ img, index }))
-    .filter(({ index }) => index !== currentImageIndex)
-    .slice(0, 4);
+  const candidateEntries = candidates.map((img, index) => ({ img, index }));
+  const preferredThumbnails = candidateEntries.filter(({ img }) =>
+    isThumbnailImage(img),
+  );
+  const thumbnails = (preferredThumbnails.length ? preferredThumbnails : candidateEntries).slice(0, 4);
 
   return (
     <div className="space-y-4">

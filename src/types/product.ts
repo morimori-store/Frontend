@@ -126,6 +126,7 @@ export type UploadedImageInfo = {
   fileType?: 'MAIN' | 'THUMBNAIL' | 'ADDITIONAL'; // ✅ 백엔드 응답 호환
   s3Key: string;
   originalFileName: string;
+  isThumbnail?: boolean;
 };
 
 // 서버 응답 기준 ProductImage 타입 (상세조회용)
@@ -135,6 +136,7 @@ export type ProductImageResponse = {
   fileType?: 'MAIN' | 'THUMBNAIL' | 'ADDITIONAL';
   s3Key: string;
   originalFileName: string;
+  isThumbnail?: boolean;
 };
 
 // 작가대시보드 - 상품관리
@@ -259,7 +261,6 @@ export type ProductCreatePayload = {
 
 // 태그
 export type TagDict = Record<string, number>;
-
 
 
 
