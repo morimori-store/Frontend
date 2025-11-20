@@ -63,6 +63,11 @@ export default function ProductImages({ images }: Props) {
     );
   }, [images]);
 
+  const thumbnails = useMemo(
+    () => candidates.map((img, index) => ({ img, index })),
+    [candidates],
+  );
+
   if (!candidates.length) {
     return (
       <div className="space-y-4">
@@ -86,10 +91,6 @@ export default function ProductImages({ images }: Props) {
   const goToImage = (index: number) => setCurrentImageIndex(index);
 
   const mainImage = candidates[currentImageIndex];
-  const thumbnails = useMemo(
-    () => candidates.map((img, index) => ({ img, index })),
-    [candidates],
-  );
 
   return (
     <div className="space-y-4">
