@@ -511,72 +511,79 @@ export default function ProductCreateModal({
     setEditorValue(payload.description ?? '');
   }
 
-  // === 파일 선택 → 자동 업로드 ===
-  const handleSelectFiles = async (incoming: File[]) => {
-    if (incoming.length === 0) return;
+  // === 파일 선택 (즉시 업로드 X) ===
+  const handleSelectFiles = (incoming: File[]) => {
+    if (!incoming.length) return;
 
-    // 중복 제거
     const dedup = incoming.filter(
       (nf) => !files.some((ef) => fileKey(ef) === fileKey(nf)),
     );
-    if (dedup.length === 0) return;
+    if (!dedup.length) return;
 
-    // UI 표시용 파일/타입 상태 갱신
-    const nextFiles = [...files, ...dedup];
-    setFiles(nextFiles);
+    setFiles((prev) => [...prev, ...dedup]);
 
-    // 타입 기본값: 첫 파일만 MAIN, 나머지는 ADDITIONAL
-    const defaultsForNew: AllowedType[] = dedup.map((_, i) =>
+    const defaults: AllowedType[] = dedup.map((_, i) =>
       files.length === 0 && i === 0 ? 'MAIN' : 'ADDITIONAL',
     );
 
-    // 기존에 이미 MAIN이 있었다면 새로 들어온 것들은 모두 ADDITIONAL
-    const alreadyMainIdx = findMainIndex(fileTypes);
-    if (alreadyMainIdx >= 0) {
-      for (let i = 0; i < defaultsForNew.length; i++)
-        defaultsForNew[i] = 'ADDITIONAL';
-    }
+    setFileTypes((prev) => [...prev, ...defaults]);
 
-    setFileTypes((prev) => [...prev, ...defaultsForNew]);
-
-    // 업로드 상태: 신규 파일만 uploading 마킹
     setUploadingMap((prev) => {
       const next = { ...prev };
-      dedup.forEach((f) => (next[fileKey(f)] = 'uploading'));
+      dedup.forEach((f) => (next[fileKey(f)] = 'pending'));
+      return next;
+    });
+  };
+
+  const handleConfirmUploads = async () => {
+    const targets = files
+      .map((file, index) => ({
+        file,
+        index,
+        key: fileKey(file),
+      }))
+      .filter(({ key }) => (uploadingMap[key] ?? 'pending') !== 'done');
+
+    if (!targets.length) {
+      alert('업로드할 파일이 없습니다.');
+      return;
+    }
+
+    setUploadingMap((prev) => {
+      const next = { ...prev };
+      targets.forEach(({ key }) => (next[key] = 'uploading'));
       return next;
     });
 
-    // 신규로 선택한 파일만 업로드
-    try {
-      const uploaded = await uploadProductImages(dedup, defaultsForNew);
+    const pendingFiles = targets.map(({ file }) => file);
+    const pendingTypes = targets.map(({ index }) =>
+      asAllowed(fileTypes[index]),
+    );
 
-      // ✅ 기존 타입과 겹치는 이미지는 교체 (누적 X)
+    try {
+      const uploaded = await uploadProductImages(pendingFiles, pendingTypes);
       setUploadedImages((prev) => [...prev, ...uploaded]);
 
-      // 파일 → s3Key 매핑 저장
       setFileS3Map((prev) => {
         const next = { ...prev };
-        dedup.forEach((f, i) => {
-          const key = fileKey(f);
-          const s3Key = uploaded[i]?.s3Key ?? null;
-          next[key] = s3Key;
+        targets.forEach(({ key }, i) => {
+          next[key] = uploaded[i]?.s3Key ?? null;
         });
         return next;
       });
 
-      // 상태 완료 처리
       setUploadingMap((prev) => {
         const next = { ...prev };
-        dedup.forEach((f) => (next[fileKey(f)] = 'done'));
+        targets.forEach(({ key }) => (next[key] = 'done'));
         return next;
       });
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : '이미지 업로드 실패';
+    } catch (e) {
+      const msg =
+        e instanceof Error ? e.message : '이미지 업로드 실패';
       alert(msg);
-
       setUploadingMap((prev) => {
         const next = { ...prev };
-        dedup.forEach((f) => (next[fileKey(f)] = 'error'));
+        targets.forEach(({ key }) => (next[key] = 'error'));
         return next;
       });
     }
@@ -933,6 +940,10 @@ export default function ProductCreateModal({
     }
     onClose();
   };
+
+  const hasPendingUploads = files.some(
+    (file) => (uploadingMap[fileKey(file)] ?? 'pending') !== 'done',
+  );
 
   if (!open) return null;
 
@@ -1810,6 +1821,16 @@ export default function ProductCreateModal({
                 * 파일을 선택하면 자동으로 업로드됩니다. (대표 이미지 1개,
                 나머지는 추가이미지 / 대표이미지는 썸네일로 사용됩니다.)
               </p>
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleConfirmUploads}
+                  disabled={!hasPendingUploads}
+                  className="px-4 py-2 rounded-md border border-primary text-primary disabled:opacity-40"
+                >
+                  이미지 선택 완료
+                </button>
+              </div>
             </div>
           )}
         </div>
