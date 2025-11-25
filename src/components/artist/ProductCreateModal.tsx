@@ -1459,54 +1459,80 @@ export default function ProductCreateModal({
               <>
                 <div className="space-y-2">
                   <div className="text-sm font-medium">옵션</div>
-                  {options.map((opt, idx) => (
-                    <div
-                      key={opt.id}
-                      className="grid grid-cols-1 md:grid-cols-4 gap-2"
-                    >
-                      <input
-                        placeholder="옵션명"
-                        value={opt.name}
-                        onChange={(e) =>
-                          updateOption(idx, { name: e.target.value })
-                        }
-                        className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
-                      />
-                      <input
-                        type="number"
-                        min={1}
-                        placeholder="재고"
-                        value={opt.stock ?? 0}
-                        onChange={(e) =>
-                          updateOption(idx, {
-                            stock: Number(e.target.value) || 0,
-                          })
-                        }
-                        className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
-                      />
-                      <input
-                        type="number"
-                        min={0}
-                        placeholder="추가금(원)"
-                        value={opt.extraPrice ?? 0}
-                        onChange={(e) =>
-                          updateOption(idx, {
-                            extraPrice: Number(e.target.value) || 0,
-                          })
-                        }
-                        className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
-                      />
-                      <div className="flex items-center justify-end">
-                        <button
-                          type="button"
-                          onClick={() => removeOption(idx)}
-                          className="text-sm border rounded px-3 py-2 hover:bg-black/5"
+                  {options.map((opt, idx) => {
+                    const nameId = `option-name-${opt.id}`;
+                    const stockId = `option-stock-${opt.id}`;
+                    const priceId = `option-price-${opt.id}`;
+                    return (
+                      <div
+                        key={opt.id}
+                        className="grid grid-cols-1 md:grid-cols-4 gap-2"
+                      >
+                        <label
+                          htmlFor={nameId}
+                          className="text-xs text-gray-500 flex flex-col gap-1"
                         >
-                          삭제
-                        </button>
+                          <span>옵션명</span>
+                          <input
+                            id={nameId}
+                            placeholder="옵션명"
+                            value={opt.name}
+                            onChange={(e) =>
+                              updateOption(idx, { name: e.target.value })
+                            }
+                            className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
+                          />
+                        </label>
+                        <label
+                          htmlFor={stockId}
+                          className="text-xs text-gray-500 flex flex-col gap-1"
+                        >
+                          <span>재고</span>
+                          <input
+                            id={stockId}
+                            type="number"
+                            min={1}
+                            placeholder="재고"
+                            value={opt.stock ?? 0}
+                            onChange={(e) =>
+                              updateOption(idx, {
+                                stock: Number(e.target.value) || 0,
+                              })
+                            }
+                            className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
+                          />
+                        </label>
+                        <label
+                          htmlFor={priceId}
+                          className="text-xs text-gray-500 flex flex-col gap-1"
+                        >
+                          <span>추가금(원)</span>
+                          <input
+                            id={priceId}
+                            type="number"
+                            min={0}
+                            placeholder="추가금(원)"
+                            value={opt.extraPrice ?? 0}
+                            onChange={(e) =>
+                              updateOption(idx, {
+                                extraPrice: Number(e.target.value) || 0,
+                              })
+                            }
+                            className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
+                          />
+                        </label>
+                        <div className="flex items-end justify-end">
+                          <button
+                            type="button"
+                            onClick={() => removeOption(idx)}
+                            className="text-sm border rounded px-3 py-2 hover:bg-black/5"
+                          >
+                            삭제
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   <button
                     type="button"
                     onClick={addOption}
@@ -1518,54 +1544,80 @@ export default function ProductCreateModal({
 
                 <div className="space-y-2">
                   <div className="text-sm font-medium">추가상품</div>
-                  {addons.map((ad, idx) => (
-                    <div
-                      key={ad.id}
-                      className="grid grid-cols-1 md:grid-cols-4 gap-2"
-                    >
-                      <input
-                        placeholder="추가상품명"
-                        value={ad.name}
-                        onChange={(e) =>
-                          updateAddon(idx, { name: e.target.value })
-                        }
-                        className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
-                      />
-                      <input
-                        type="number"
-                        min={1}
-                        placeholder="재고"
-                        value={ad.stock ?? 0}
-                        onChange={(e) =>
-                          updateAddon(idx, {
-                            stock: Number(e.target.value) || 0,
-                          })
-                        }
-                        className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
-                      />
-                      <input
-                        type="number"
-                        min={0}
-                        placeholder="가격(원)"
-                        value={ad.extraPrice ?? 0}
-                        onChange={(e) =>
-                          updateAddon(idx, {
-                            extraPrice: Number(e.target.value) || 0,
-                          })
-                        }
-                        className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
-                      />
-                      <div className="flex items-center justify-end">
-                        <button
-                          type="button"
-                          onClick={() => removeOption(idx)}
-                          className="text-sm border rounded px-3 py-2 hover:bg-black/5"
+                  {addons.map((ad, idx) => {
+                    const stockId = `addon-stock-${ad.id}`;
+                    const priceId = `addon-price-${ad.id}`;
+                    const nameId = `addon-name-${ad.id}`;
+                    return (
+                      <div
+                        key={ad.id}
+                        className="grid grid-cols-1 md:grid-cols-4 gap-2"
+                      >
+                        <label
+                          htmlFor={nameId}
+                          className="text-xs text-gray-500 flex flex-col gap-1"
                         >
-                          삭제
-                        </button>
+                          <span>추가상품명</span>
+                          <input
+                            id={nameId}
+                            placeholder="추가상품명"
+                            value={ad.name}
+                            onChange={(e) =>
+                              updateAddon(idx, { name: e.target.value })
+                            }
+                            className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
+                          />
+                        </label>
+                        <label
+                          htmlFor={stockId}
+                          className="text-xs text-gray-500 flex flex-col gap-1"
+                        >
+                          <span>재고</span>
+                          <input
+                            id={stockId}
+                            type="number"
+                            min={1}
+                            placeholder="재고"
+                            value={ad.stock ?? 0}
+                            onChange={(e) =>
+                              updateAddon(idx, {
+                                stock: Number(e.target.value) || 0,
+                              })
+                            }
+                            className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
+                          />
+                        </label>
+                        <label
+                          htmlFor={priceId}
+                          className="text-xs text-gray-500 flex flex-col gap-1"
+                        >
+                          <span>가격(원)</span>
+                          <input
+                            id={priceId}
+                            type="number"
+                            min={0}
+                            placeholder="가격(원)"
+                            value={ad.extraPrice ?? 0}
+                            onChange={(e) =>
+                              updateAddon(idx, {
+                                extraPrice: Number(e.target.value) || 0,
+                              })
+                            }
+                            className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
+                          />
+                        </label>
+                        <div className="flex items-end justify-end">
+                          <button
+                            type="button"
+                            onClick={() => removeOption(idx)}
+                            className="text-sm border rounded px-3 py-2 hover:bg-black/5"
+                          >
+                            삭제
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   <button
                     type="button"
                     onClick={addAddon}
