@@ -2,7 +2,8 @@
 
 import FilterArrowOpen from '@/assets/icon/filterarrowopen.svg';
 import ArrowClose from '@/assets/icon/arrowclose.svg';
-import Heart from '@/assets/icon/heart.svg';
+import FullHeart from '@/assets/icon/full_heart.svg';
+import LineFullHeart from '@/assets/icon/full_heart_line.svg';
 import X from '@/assets/icon/x.svg';
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { addToWishlist, removeFromWishlist } from '@/services/wishlist';
@@ -61,7 +62,8 @@ export default function ProductOptions({
       setOpenDropdown(null);
     };
     document.addEventListener('pointerdown', handlePointer, true);
-    return () => document.removeEventListener('pointerdown', handlePointer, true);
+    return () =>
+      document.removeEventListener('pointerdown', handlePointer, true);
   }, [openDropdown]);
 
   const baseUnitPrice = useMemo(() => Math.max(0, basePrice ?? 0), [basePrice]);
@@ -221,7 +223,12 @@ export default function ProductOptions({
   return (
     <div>
       <div className="my-5 border-y py-5 space-y-4">
-        {renderDropdown(optionItems, '상품 옵션을 선택해주세요', 'option', optionRef)}
+        {renderDropdown(
+          optionItems,
+          '상품 옵션을 선택해주세요',
+          'option',
+          optionRef,
+        )}
         {renderDropdown(
           addonItems,
           '추가상품을 선택해주세요',
@@ -292,18 +299,9 @@ export default function ProductOptions({
           <button
             type="button"
             onClick={handleWishToggle}
-            className={`border rounded-sm px-5 py-3.5 flex items-center gap-1 transition ${
-              isWish
-                ? 'border-danger text-danger'
-                : 'border-gray-300 text-gray-500'
-            }`}
+            className={`border border-primary rounded-sm px-5 py-3.5 flex items-center gap-1 transition `}
           >
-            <Heart
-              width={16}
-              height={16}
-              className={isWish ? 'text-danger' : 'text-gray-400'}
-            />
-            {isWish ? '찜 완료' : '찜하기'}
+            {isWish ? <FullHeart /> : <LineFullHeart />}
           </button>
         </div>
       </div>
