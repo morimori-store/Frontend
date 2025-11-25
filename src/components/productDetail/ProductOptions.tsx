@@ -117,10 +117,25 @@ export default function ProductOptions({
     setSelectedItems((prev) => prev.filter((item) => item.id !== id));
   };
 
-  const totalPrice = selectedItems.reduce(
-    (sum, item) => sum + item.unitPrice * item.count,
-    0,
-  );
+  const hasSelectableItems =
+    optionItems.length > 0 || addonItems.length > 0;
+
+  const fallbackBaseItem: SelectedItem | null = hasSelectableItems
+    ? null
+    : {
+        id: 'base',
+        label: '기본 상품',
+        unitPrice: baseUnitPrice,
+        maxCount: 0,
+        kind: 'OPTION',
+        count: 1,
+      };
+
+  const totalPrice = selectedItems.length
+    ? selectedItems.reduce((sum, item) => sum + item.unitPrice * item.count, 0)
+    : fallbackBaseItem
+    ? fallbackBaseItem.unitPrice
+    : 0;
 
   const handleWishToggle = async () => {
     if (!productUuid || loading) return;
@@ -153,11 +168,17 @@ export default function ProductOptions({
 
   const handleAddToCart = async () => {
     if (!productUuid) return alert('상품 정보를 불러오지 못했습니다.');
-    if (selectedItems.length === 0)
+    const itemsForCart =
+      selectedItems.length > 0
+        ? selectedItems
+        : fallbackBaseItem
+        ? [fallbackBaseItem]
+        : [];
+    if (!itemsForCart.length)
       return alert('구매할 옵션 또는 추가상품을 선택해주세요.');
     try {
-      const quantity = selectedItems.reduce((sum, item) => sum + item.count, 0);
-      const optionInfo = selectedItems
+      const quantity = itemsForCart.reduce((sum, item) => sum + item.count, 0);
+      const optionInfo = itemsForCart
         .map((item) => `${item.label} x ${item.count}`)
         .join(', ');
       await addToCart({
@@ -241,9 +262,22 @@ export default function ProductOptions({
 
         <div className="mt-4 space-y-2.5 overflow-auto max-h-[220px]">
           {selectedItems.length === 0 ? (
-            <p className="text-sm text-gray-500">
-              선택한 옵션/추가상품이 없습니다.
-            </p>
+            hasSelectableItems ? (
+              <p className="text-sm text-gray-500">
+                선택한 옵션/추가상품이 없습니다.
+              </p>
+            ) : (
+              <div className="flex items-center justify-between rounded-md bg-gray-50 px-3 py-5">
+                <div>
+                  <span className="font-semibold">기본 상품</span>
+                  <span className="ml-2 text-xs text-gray-400">옵션 없음</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span>1개</span>
+                  <span>{formatPrice(baseUnitPrice)}</span>
+                </div>
+              </div>
+            )
           ) : (
             selectedItems.map((item) => (
               <div
