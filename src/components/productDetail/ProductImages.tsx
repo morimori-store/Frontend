@@ -12,10 +12,15 @@ type Props = {
   images?: ProductImageLike[];
 };
 
-const allowedTypes = new Set(['MAIN', 'ADDITIONAL']);
+const resolveType = (img: ProductImageLike): string =>
+  (img.type ?? img.fileType ?? '').toUpperCase();
 
 const resolveSrc = (img: ProductImageLike): string | null => {
-  const raw = (img.url ?? '').trim();
+  const raw =
+    (img as { url?: string; imageUrl?: string; thumbnailUrl?: string }).url?.trim() ??
+    (img as { imageUrl?: string }).imageUrl?.trim() ??
+    (img as { thumbnailUrl?: string }).thumbnailUrl?.trim() ??
+    '';
   if (!raw) return null;
   return toAbsoluteImageUrl(raw) ?? null;
 };
@@ -36,31 +41,37 @@ export default function ProductImages({ images }: Props) {
 
   const candidates = useMemo(() => {
     const seen = new Set<string>();
-    return (
-      images
-        ?.filter((img) => {
-          const type = img.type ?? img.fileType ?? '';
-          const key = img.s3Key ?? '';
-          if (!allowedTypes.has(type)) return false;
-          if (key.includes('/thumbnail-')) return false;
-          return true;
-        })
-        .map((img) => {
-          const displayUrl = resolveSrc(img);
-          const dedupKey = dedupKeyFrom(img, displayUrl);
-          return { ...img, displayUrl, dedupKey };
-        })
-        .filter(
-          (
-            img,
-          ): img is typeof img & { displayUrl: string; dedupKey: string } => {
-            if (!img.displayUrl || !img.dedupKey) return false;
-            if (seen.has(img.dedupKey)) return false;
-            seen.add(img.dedupKey);
-            return true;
-          },
-        ) ?? []
+    const buckets = (images ?? []).reduce(
+      (acc, img) => {
+        const type = resolveType(img);
+        if (type === 'MAIN' || type === 'ADDITIONAL') {
+          acc.primary.push(img);
+        } else if (type === 'THUMBNAIL') {
+          acc.thumbnail.push(img);
+        }
+        return acc;
+      },
+      { primary: [] as ProductImageLike[], thumbnail: [] as ProductImageLike[] },
     );
+    const ordered =
+      buckets.primary.length > 0 ? buckets.primary : buckets.thumbnail;
+
+    return ordered
+      .map((img) => {
+        const displayUrl = resolveSrc(img);
+        const dedupKey = dedupKeyFrom(img, displayUrl);
+        return { ...img, displayUrl, dedupKey };
+      })
+      .filter(
+        (
+          img,
+        ): img is typeof img & { displayUrl: string; dedupKey: string } => {
+          if (!img.displayUrl || !img.dedupKey) return false;
+          if (seen.has(img.dedupKey)) return false;
+          seen.add(img.dedupKey);
+          return true;
+        },
+      );
   }, [images]);
 
   const thumbnails = useMemo(

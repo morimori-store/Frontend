@@ -427,7 +427,9 @@ function normalizeProductsPaged(input: unknown, fallbackSize: number): ProductLi
     totalPages: number;
     products: Array<{
       productUuid: string;
-      url: string;
+      url?: string;
+      imageUrl?: string;
+      thumbnailUrl?: string;
       brandName: string;
       name: string;
       price: number;
@@ -447,7 +449,7 @@ function normalizeProductsPaged(input: unknown, fallbackSize: number): ProductLi
         totalPages: d.totalPages ?? 0,
         products: d.products.map((p) => ({
           productUuid: p.productUuid,
-          url: p.url,
+          url: p.url ?? p.imageUrl ?? p.thumbnailUrl ?? '',
           brandName: p.brandName,
           name: p.name,
           price: p.price,
@@ -462,7 +464,10 @@ function normalizeProductsPaged(input: unknown, fallbackSize: number): ProductLi
   // 프리셋 API(/new, /onsale ...): { code?, message?, data: ProductListItem[] }
   const asArrayEnvelope = input as { data?: unknown };
   if (asArrayEnvelope && Array.isArray(asArrayEnvelope.data)) {
-    const list = asArrayEnvelope.data as ProductListItem[];
+    const list = (asArrayEnvelope.data as ProductListItem[]).map((p) => ({
+      ...p,
+      url: p.url ?? (p as { imageUrl?: string }).imageUrl ?? (p as { thumbnailUrl?: string }).thumbnailUrl ?? '',
+    }));
     const total = list.length;
     return {
       page: 0,
@@ -523,17 +528,20 @@ export async function fetchProductDetail(productUuid: string): Promise<ProductDe
   const data = json?.data;
 
   type ImageItem = {
-    url: string;
-    type: string;
-    s3Key: string;
-    originalFileName: string;
+    url?: string;
+    imageUrl?: string;
+    thumbnailUrl?: string;
+    type?: string;
+    fileType?: string;
+    s3Key?: string;
+    originalFileName?: string;
   };
 
-    const images: ImageItem[] = (data?.images ?? []).map((d: ImageItem) => ({
-    url: d.url,
-    type: d.type,
-    s3Key: d.s3Key,
-    originalFileName: d.originalFileName,
+  const images: ImageItem[] = (data?.images ?? []).map((d: ImageItem) => ({
+    url: d.url ?? d.imageUrl ?? d.thumbnailUrl ?? '',
+    type: d.type ?? d.fileType ?? 'ADDITIONAL',
+    s3Key: d.s3Key ?? '',
+    originalFileName: d.originalFileName ?? '',
   }));
 
   return {
@@ -546,6 +554,3 @@ export async function fetchProductDetail(productUuid: string): Promise<ProductDe
 // 가격 포맷
 export const formatWon = (n: number | null | undefined) =>
   typeof n === 'number' && Number.isFinite(n) ? n.toLocaleString('ko-KR') + '원' : '-';
-
-
-

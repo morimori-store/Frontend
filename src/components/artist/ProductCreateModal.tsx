@@ -44,6 +44,13 @@ const fileKey = (f: File) => `${f.name}-${f.size}-${f.lastModified}`;
 
 // 허용 타입만: MAIN | ADDITIONAL
 type AllowedType = Extract<UploadType, 'MAIN' | 'ADDITIONAL'>;
+const normalizeUploadType = (t?: UploadType | null): UploadType => {
+  if (t === 'MAIN' || t === 'THUMBNAIL' || t === 'ADDITIONAL') return t;
+  return 'ADDITIONAL';
+};
+const resolveUploadType = (
+  img?: { type?: UploadType | null; fileType?: UploadType | null } | null,
+): UploadType => normalizeUploadType(img?.type ?? img?.fileType);
 const asAllowed = (t: UploadType | undefined): AllowedType =>
   t === 'MAIN' ? 'MAIN' : 'ADDITIONAL';
 
@@ -175,10 +182,32 @@ function toProductCreateDto(
       additionalProductPrice: a.extraPrice ?? 0,
     })),
 
-    images: (opts.uploadedImages ?? []).map((img) => ({
-      ...img,
-      type: (img.type ?? 'ADDITIONAL') as UploadType,
-    })),
+    images: (() => {
+      const cloned = (opts.uploadedImages ?? []).map((img) => {
+        const resolved = resolveUploadType(img);
+        return {
+          ...img,
+          type: resolved,
+          fileType: img.fileType ?? resolved,
+        };
+      });
+      const hasThumbnail = cloned.some(
+        (img) => resolveUploadType(img) === 'THUMBNAIL',
+      );
+      if (!hasThumbnail) {
+        const mainImage = cloned.find(
+          (img) => resolveUploadType(img) === 'MAIN',
+        );
+        if (mainImage) {
+          cloned.push({
+            ...mainImage,
+            type: 'THUMBNAIL',
+            fileType: 'THUMBNAIL',
+          });
+        }
+      }
+      return cloned;
+    })(),
 
     certification: payload.certification ?? false,
     origin: payload.origin,
@@ -214,6 +243,7 @@ type Props = {
     businessAddress?: string;
     telecomSalesNumber?: string;
   };
+  initialImages?: UploadedImageInfo[];
 };
 
 export default function ProductCreateModal({
@@ -229,6 +259,7 @@ export default function ProductCreateModal({
   onSaveSnapshot,
   initialBrand = '모리모리',
   initialBizInfo,
+  initialImages = [],
 }: Props) {
   // === 상태들 ===
   const [brand, setBrand] = useState(initialBrand);
@@ -302,6 +333,7 @@ export default function ProductCreateModal({
   const [files, setFiles] = useState<File[]>([]);
   const [fileTypes, setFileTypes] = useState<UploadType[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
+  const [thumbnailFlags, setThumbnailFlags] = useState<boolean[]>([]);
   const [uploadedImages, setUploadedImages] = useState<UploadedImageInfo[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -411,16 +443,16 @@ export default function ProductCreateModal({
       setFiles([]);
       setPreviews([]);
       setUploadedImages([]);
+      setThumbnailFlags([]);
       setUploadingMap({});
       setFileS3Map({});
       setFileTypes([]);
-      return;
     }
 
-    if (mode === 'edit' && initialPayload) {
-      hydrateFromPayload(initialPayload);
+    else if (mode === 'edit' && initialPayload) {
+      hydrateFromPayload(initialPayload, initialImages);
     }
-  }, [open, mode, initialPayload, initialBrand, initialBizInfo]);
+  }, [open]);
 
   const subOptions = useMemo(() => {
     const root = catTree.find((c) => String(c.id) === category1);
@@ -455,7 +487,10 @@ export default function ProductCreateModal({
     };
   }, [open]);
 
-  function hydrateFromPayload(payload: ProductCreatePayload) {
+  function hydrateFromPayload(
+    payload: ProductCreatePayload,
+    images?: UploadedImageInfo[],
+  ) {
     setBrand(payload.brand ?? initialBrand);
     setTitle(payload.title ?? '');
     setModelName(payload.modelName ?? '');
@@ -509,6 +544,20 @@ export default function ProductCreateModal({
     }));
 
     setEditorValue(payload.description ?? '');
+    setFiles([]);
+    setFileTypes([]);
+    setPreviews([]);
+    setThumbnailFlags([]);
+    const serverImages = images ?? [];
+    setUploadedImages(serverImages);
+    setUploadingMap(
+      Object.fromEntries(
+        serverImages.map((img, idx) => [
+          img.originalFileName ?? img.s3Key ?? `server-${idx}`,
+          'done',
+        ]),
+      ),
+    );
   }
 
   // === 파일 선택 (즉시 업로드 X) ===
@@ -562,7 +611,18 @@ export default function ProductCreateModal({
 
     try {
       const uploaded = await uploadProductImages(pendingFiles, pendingTypes);
-      setUploadedImages((prev) => [...prev, ...uploaded]);
+      const merged = uploaded.map((item, i) => {
+        const fallback = pendingTypes[i];
+        const resolved = normalizeUploadType(
+          item.type ?? item.fileType ?? fallback,
+        );
+        return {
+          ...item,
+          type: resolved,
+          fileType: item.fileType ?? resolved,
+        };
+      });
+      setUploadedImages((prev) => [...prev, ...merged]);
 
       setFileS3Map((prev) => {
         const next = { ...prev };
@@ -757,7 +817,7 @@ export default function ProductCreateModal({
     const upImgs = ctx.uploadedImages ?? [];
     if (upImgs.length < 1)
       errs.push('이미지는 최소 1개 이상 업로드해야 합니다.');
-    const types = upImgs.map((u) => asAllowed(u.type));
+    const types = upImgs.map((u) => asAllowed(resolveUploadType(u)));
     const mainCount = types.filter((t) => t === 'MAIN').length;
     if (mainCount !== 1)
       errs.push('대표 이미지(MAIN)는 정확히 1개여야 합니다.');
@@ -849,6 +909,57 @@ export default function ProductCreateModal({
         prev.filter((u) => u.originalFileName !== target.name),
       );
     }
+  };
+
+  const removeServerImage = async (idx: number) => {
+    const target = uploadedImages[idx];
+    if (!target) return;
+
+    const key = target.s3Key ?? target.originalFileName ?? `server-${idx}`;
+
+    if (target.s3Key) {
+      try {
+        await deleteProductImage(target.s3Key);
+      } catch (e) {
+        alert(
+          e instanceof Error
+            ? e.message
+            : '이미지를 삭제하지 못했습니다.',
+        );
+        return;
+      }
+    }
+
+    setUploadedImages((prev) => prev.filter((_, i) => i !== idx));
+    setUploadingMap((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const handleServerImageTypeChange = (
+    idx: number,
+    nextType: AllowedType,
+  ) => {
+    setUploadedImages((prev) => {
+      const updated = prev.map((img) => ({ ...img }));
+      if (!updated[idx]) return prev;
+
+      if (nextType === 'MAIN') {
+        const other = updated.findIndex(
+          (img, i) =>
+            i !== idx && asAllowed(resolveUploadType(img)) === 'MAIN',
+        );
+        if (other >= 0) {
+          updated[other].type = 'ADDITIONAL';
+          updated[other].fileType = 'ADDITIONAL';
+        }
+      }
+      updated[idx].type = nextType;
+      updated[idx].fileType = nextType;
+      return updated;
+    });
   };
 
   // 생성
@@ -1724,6 +1835,60 @@ export default function ProductCreateModal({
               </div>
             </div>
           </section>
+
+          {/* 등록된 이미지 (서버) */}
+          {uploadedImages.length > 0 && (
+            <div className="mt-4 space-y-3">
+              <div className="space-y-2">
+                <p className="text-sm font-medium">등록된 이미지</p>
+                {uploadedImages.map((img, idx) => {
+                  const resolvedType = asAllowed(resolveUploadType(img));
+                  return (
+                  <div
+                    key={img.s3Key ?? img.originalFileName ?? `server-${idx}`}
+                    className="flex items-center gap-3 text-sm"
+                  >
+                    <div className="w-10 h-10 rounded overflow-hidden bg-gray-100 flex items-center justify-center shrink-0">
+                      <img
+                        src={img.url}
+                        alt={img.originalFileName ?? `이미지 ${idx + 1}`}
+                        className="w-full h-full object-cover"
+                        draggable={false}
+                      />
+                    </div>
+                    <span className="flex-1 truncate">
+                      {img.originalFileName || img.s3Key || `등록된 이미지 ${idx + 1}`}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={resolvedType}
+                        onChange={(e) =>
+                          handleServerImageTypeChange(
+                            idx,
+                            e.target.value as AllowedType,
+                          )
+                        }
+                        className="rounded border border-[var(--color-gray-200)] py-1 px-2 text-xs"
+                      >
+                        <option value="MAIN">대표 이미지</option>
+                        <option value="ADDITIONAL">추가이미지</option>
+                      </select>
+                      <span className="px-2 py-1 rounded text-xs bg-green-100 text-green-800">
+                        등록됨
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeServerImage(idx)}
+                      className="ml-2 rounded border px-2 py-1 hover:bg-black/5"
+                    >
+                      삭제
+                    </button>
+                  </div>
+                )})}
+              </div>
+            </div>
+          )}
 
           {/* 파일 타입 지정 + 개별 삭제 */}
           {files.length > 0 && (
