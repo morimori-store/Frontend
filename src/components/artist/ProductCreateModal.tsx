@@ -45,7 +45,11 @@ const fileKey = (f: File) => `${f.name}-${f.size}-${f.lastModified}`;
 // 허용 타입만: MAIN | ADDITIONAL
 type AllowedType = Extract<UploadType, 'MAIN' | 'ADDITIONAL'>;
 const normalizeUploadType = (t?: UploadType | null): UploadType => {
-  if (t === 'MAIN' || t === 'THUMBNAIL' || t === 'ADDITIONAL') return t;
+  const normalized =
+    typeof t === 'string' ? t.trim().toUpperCase() : '';
+  if (normalized === 'MAIN') return 'MAIN';
+  if (normalized === 'THUMBNAIL') return 'THUMBNAIL';
+  if (normalized === 'ADDITIONAL') return 'ADDITIONAL';
   return 'ADDITIONAL';
 };
 const resolveUploadType = (
@@ -53,6 +57,44 @@ const resolveUploadType = (
 ): UploadType => normalizeUploadType(img?.type ?? img?.fileType);
 const asAllowed = (t: UploadType | undefined): AllowedType =>
   t === 'MAIN' ? 'MAIN' : 'ADDITIONAL';
+const isSameUploadAsset = (
+  a?: { s3Key?: string | null; originalFileName?: string | null } | null,
+  b?: { s3Key?: string | null; originalFileName?: string | null } | null,
+) => {
+  if (!a || !b) return false;
+  if (a.s3Key && b.s3Key) return a.s3Key === b.s3Key;
+  if (a.originalFileName && b.originalFileName)
+    return a.originalFileName === b.originalFileName;
+  return false;
+};
+const normalizeAssetName = (value?: string | null) =>
+  (value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/thumbnail[-_]?/g, '')
+    .replace(/thumb[-_]?/g, '');
+const extractUrl = (img?: {
+  url?: string | null;
+  imageUrl?: string | null;
+  thumbnailUrl?: string | null;
+}) => (img?.url ?? img?.imageUrl ?? img?.thumbnailUrl ?? '')?.toString() ?? '';
+const isLinkedThumbnail = (
+  thumb: UploadedImageInfo,
+  main: UploadedImageInfo,
+) => {
+  if (resolveUploadType(thumb) !== 'THUMBNAIL') return false;
+  if (isSameUploadAsset(thumb, main)) return true;
+  const thumbName = normalizeAssetName(thumb.originalFileName);
+  const mainName = normalizeAssetName(main.originalFileName);
+  if (thumbName && mainName && thumbName === mainName) return true;
+  const thumbKey = normalizeAssetName(thumb.s3Key);
+  const mainKey = normalizeAssetName(main.s3Key);
+  if (thumbKey && mainKey && thumbKey === mainKey) return true;
+  const thumbUrl = normalizeAssetName(extractUrl(thumb));
+  const mainUrl = normalizeAssetName(extractUrl(main));
+  if (thumbUrl && mainUrl && thumbUrl === mainUrl) return true;
+  return false;
+};
 
 // 파일 타입 배열에서 MAIN 인덱스 찾기
 const findMainIndex = (types: UploadType[]) =>
@@ -182,32 +224,14 @@ function toProductCreateDto(
       additionalProductPrice: a.extraPrice ?? 0,
     })),
 
-    images: (() => {
-      const cloned = (opts.uploadedImages ?? []).map((img) => {
-        const resolved = resolveUploadType(img);
-        return {
-          ...img,
-          type: resolved,
-          fileType: img.fileType ?? resolved,
-        };
-      });
-      const hasThumbnail = cloned.some(
-        (img) => resolveUploadType(img) === 'THUMBNAIL',
-      );
-      if (!hasThumbnail) {
-        const mainImage = cloned.find(
-          (img) => resolveUploadType(img) === 'MAIN',
-        );
-        if (mainImage) {
-          cloned.push({
-            ...mainImage,
-            type: 'THUMBNAIL',
-            fileType: 'THUMBNAIL',
-          });
-        }
-      }
-      return cloned;
-    })(),
+    images: (opts.uploadedImages ?? []).map((img) => {
+      const resolved = resolveUploadType(img);
+      return {
+        ...img,
+        type: resolved,
+        fileType: img.fileType ?? resolved,
+      };
+    }),
 
     certification: payload.certification ?? false,
     origin: payload.origin,
@@ -821,6 +845,13 @@ export default function ProductCreateModal({
     const mainCount = types.filter((t) => t === 'MAIN').length;
     if (mainCount !== 1)
       errs.push('대표 이미지(MAIN)는 정확히 1개여야 합니다.');
+    const hasThumbnail = upImgs.some(
+      (img) => resolveUploadType(img) === 'THUMBNAIL',
+    );
+    if (!hasThumbnail)
+      errs.push(
+        '썸네일 이미지를 최소 1장 업로드해주세요. 대표 이미지를 삭제했다면 새 이미지를 업로드해 썸네일을 다시 생성해야 합니다.',
+      );
 
     // KC 인증 여부
     if (p.certification == null) errs.push('KC 인증 여부는 필수입니다.');
@@ -915,11 +946,22 @@ export default function ProductCreateModal({
     const target = uploadedImages[idx];
     if (!target) return;
 
-    const key = target.s3Key ?? target.originalFileName ?? `server-${idx}`;
+    const linkedThumbnails =
+      resolveUploadType(target) === 'MAIN'
+        ? uploadedImages
+            .map((img, i) => ({ img, index: i }))
+            .filter(
+              ({ img, index }) =>
+                index !== idx && isLinkedThumbnail(img, target),
+            )
+        : [];
 
-    if (target.s3Key) {
+    const removals = [{ img: target, index: idx }, ...linkedThumbnails];
+
+    for (const { img } of removals) {
+      if (!img.s3Key) continue;
       try {
-        await deleteProductImage(target.s3Key);
+        await deleteProductImage(img.s3Key);
       } catch (e) {
         alert(
           e instanceof Error
@@ -930,10 +972,26 @@ export default function ProductCreateModal({
       }
     }
 
-    setUploadedImages((prev) => prev.filter((_, i) => i !== idx));
+    const removeIndexSet = new Set(removals.map(({ index }) => index));
+    setUploadedImages((prev) => {
+      const remaining = prev
+        .filter((_, i) => !removeIndexSet.has(i))
+        .map((img) => ({ ...img }));
+      const hasMain = remaining.some(
+        (img) => resolveUploadType(img) === 'MAIN',
+      );
+      if (!hasMain && remaining.length > 0) {
+        remaining[0].type = 'MAIN';
+        remaining[0].fileType = 'MAIN';
+      }
+      return remaining;
+    });
     setUploadingMap((prev) => {
       const next = { ...prev };
-      delete next[key];
+      removals.forEach(({ img, index }) => {
+        const key = img.s3Key ?? img.originalFileName ?? `server-${index}`;
+        delete next[key];
+      });
       return next;
     });
   };

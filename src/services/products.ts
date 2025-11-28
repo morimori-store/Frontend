@@ -224,7 +224,15 @@ export async function updateProduct(productUuid: string, dto: ProductCreateDto):
   }
 
   const text = await res.text();
-  if (!res.ok) throw new Error('상품 수정 실패');
+  if (!res.ok) {
+    try {
+      const parsed = text ? JSON.parse(text) : null;
+      console.error('[updateProduct] FAIL', { status: res.status, payload: body, parsed });
+    } catch {
+      console.error('[updateProduct] FAIL', { status: res.status, payload: body, raw: text });
+    }
+    throw new Error('상품 수정 실패');
+  }
 
   const json = JSON.parse(text) as ApiResponse<string | null>;
   if (json.resultCode !== '200' || !json.data) {
