@@ -606,9 +606,19 @@ export default function ProductCreateModal({
 
     setFiles((prev) => [...prev, ...dedup]);
 
-    const defaults: AllowedType[] = dedup.map((_, i) =>
-      files.length === 0 && i === 0 ? 'MAIN' : 'ADDITIONAL',
+    const hasServerMain = uploadedImages.some(
+      (img) => resolveUploadType(img) === 'MAIN',
     );
+    const hasPendingMain = fileTypes.some((type) => type === 'MAIN');
+    let canAssignMain = !hasServerMain && !hasPendingMain;
+
+    const defaults: AllowedType[] = dedup.map(() => {
+      if (canAssignMain) {
+        canAssignMain = false;
+        return 'MAIN';
+      }
+      return 'ADDITIONAL';
+    });
 
     setFileTypes((prev) => [...prev, ...defaults]);
 
@@ -643,6 +653,22 @@ export default function ProductCreateModal({
     const pendingTypes = targets.map(({ index }) =>
       asAllowed(fileTypes[index]),
     );
+
+    const serverMainExists = uploadedImages.some(
+      (img) => resolveUploadType(img) === 'MAIN',
+    );
+    const pendingMainExists = fileTypes.some(
+      (type, idx) => type === 'MAIN' && files[idx],
+    );
+    if (serverMainExists && pendingMainExists) {
+      alert('대표 이미지는 1개만 지정할 수 있습니다. 기존 대표 이미지를 삭제한 뒤 다시 시도해주세요.');
+      setUploadingMap((prev) => {
+        const next = { ...prev };
+        targets.forEach(({ key }) => (next[key] = 'pending'));
+        return next;
+      });
+      return;
+    }
 
     try {
       const uploaded = await uploadProductImages(pendingFiles, pendingTypes);
