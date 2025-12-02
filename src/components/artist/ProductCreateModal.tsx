@@ -699,24 +699,26 @@ export default function ProductCreateModal({
     const allowed = asAllowed(newType);
     setFileTypes((prev) => {
       const updated = [...prev];
+      const hasServerMain = uploadedImages.some(
+        (img) => resolveUploadType(img) === 'MAIN',
+      );
+      const hasPendingMain = updated.some(
+        (type, i) => type === 'MAIN' && i !== index,
+      );
 
       if (allowed === 'MAIN') {
-        const oldMain = findMainIndex(updated);
-        if (oldMain >= 0 && oldMain !== index) updated[oldMain] = 'THUMBNAIL';
+        if (hasServerMain || hasPendingMain) {
+          alert(
+            '등록된 이미지에 이미 대표 이미지가 있습니다. 기존 대표 이미지를 삭제한 뒤 다시 시도해주세요.',
+          );
+          return prev;
+        }
         updated[index] = 'MAIN';
         return updated;
       }
 
       // allowed === 'ADDITIONAL'
-      const isTurningOffLastMain = updated[index] === 'MAIN';
       updated[index] = 'ADDITIONAL';
-
-      if (isTurningOffLastMain) {
-        // 다른 파일 중 첫 번째를 MAIN으로 승격 (없으면 그대로 두고, 저장 시 검증)
-        const otherIdx = updated.findIndex((_, i) => i !== index);
-        if (otherIdx >= 0) updated[otherIdx] = 'MAIN';
-      }
-
       return updated;
     });
   };
