@@ -1004,7 +1004,7 @@ export default function ProductCreateModal({
       );
       if (hasMain) {
         alert(
-          '대표 이미지가 남아 있는 동안에는 썸네일만 삭제할 수 없습니다. 대표 이미지를 먼저 삭제하거나 새로 업로드해주세요.',
+          '썸네일 이미지는 단독으로 삭제할 수 없습니다. 대표 이미지를 삭제할 시 썸네일 이미지도 같이 삭제됩니다.',
         );
         return;
       }
