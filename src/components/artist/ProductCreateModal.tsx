@@ -67,6 +67,17 @@ const isSameUploadAsset = (
     return a.originalFileName === b.originalFileName;
   return false;
 };
+const dedupeImages = (list: UploadedImageInfo[]): UploadedImageInfo[] => {
+  const map = new Map<string, UploadedImageInfo>();
+  list.forEach((img) => {
+    const key =
+      img.s3Key ??
+      img.originalFileName ??
+      `${img.url ?? 'local'}-${(img as { id?: string }).id ?? ''}`;
+    map.set(key, img);
+  });
+  return Array.from(map.values());
+};
 const normalizeAssetName = (value?: string | null) =>
   (value ?? '')
     .trim()
@@ -573,7 +584,7 @@ export default function ProductCreateModal({
     setPreviews([]);
     setThumbnailFlags([]);
     const serverImages = images ?? [];
-    setUploadedImages(serverImages);
+    setUploadedImages(dedupeImages(serverImages));
     setUploadingMap(
       Object.fromEntries(
         serverImages.map((img, idx) => [
@@ -646,7 +657,17 @@ export default function ProductCreateModal({
           fileType: item.fileType ?? resolved,
         };
       });
-      setUploadedImages((prev) => [...prev, ...merged]);
+      setUploadedImages((prev) => dedupeImages([...prev, ...merged]));
+
+      const keepIndexes = files
+        .map((_, idx) => idx)
+        .filter((idx) => !targets.some((t) => t.index === idx));
+      setFiles((prev) => prev.filter((_, idx) => keepIndexes.includes(idx)));
+      setFileTypes((prev) => prev.filter((_, idx) => keepIndexes.includes(idx)));
+      setPreviews((prev) => prev.filter((_, idx) => keepIndexes.includes(idx)));
+      setThumbnailFlags((prev) =>
+        prev.filter((_, idx) => keepIndexes.includes(idx)),
+      );
 
       setFileS3Map((prev) => {
         const next = { ...prev };
@@ -850,7 +871,7 @@ export default function ProductCreateModal({
     );
     if (!hasThumbnail)
       errs.push(
-        '썸네일 이미지를 최소 1장 업로드해주세요. 대표 이미지를 삭제했다면 새 이미지를 업로드해 썸네일을 다시 생성해야 합니다.',
+        '대표 이미지를 최소 1장 업로드해주세요. 대표 이미지를 업로드하면 썸네일이 자동으로 다시 생성됩니다.',
       );
 
     // KC 인증 여부
@@ -934,10 +955,12 @@ export default function ProductCreateModal({
     });
 
     if (s3Key) {
-      setUploadedImages((prev) => prev.filter((u) => u.s3Key !== s3Key));
+      setUploadedImages((prev) =>
+        dedupeImages(prev.filter((u) => u.s3Key !== s3Key)),
+      );
     } else {
       setUploadedImages((prev) =>
-        prev.filter((u) => u.originalFileName !== target.name),
+        dedupeImages(prev.filter((u) => u.originalFileName !== target.name)),
       );
     }
   };
@@ -973,19 +996,11 @@ export default function ProductCreateModal({
     }
 
     const removeIndexSet = new Set(removals.map(({ index }) => index));
-    setUploadedImages((prev) => {
-      const remaining = prev
-        .filter((_, i) => !removeIndexSet.has(i))
-        .map((img) => ({ ...img }));
-      const hasMain = remaining.some(
-        (img) => resolveUploadType(img) === 'MAIN',
-      );
-      if (!hasMain && remaining.length > 0) {
-        remaining[0].type = 'MAIN';
-        remaining[0].fileType = 'MAIN';
-      }
-      return remaining;
-    });
+    setUploadedImages((prev) =>
+      dedupeImages(
+        prev.filter((_, i) => !removeIndexSet.has(i)).map((img) => ({ ...img })),
+      ),
+    );
     setUploadingMap((prev) => {
       const next = { ...prev };
       removals.forEach(({ img, index }) => {
@@ -1950,7 +1965,7 @@ export default function ProductCreateModal({
           {uploadedImages.length > 0 && (
             <div className="mt-4 space-y-3">
               <div className="space-y-2">
-                <p className="text-sm font-medium">등록된 이미지</p>
+                <p className="text-sm font-medium">업로드 완료된 이미지</p>
                 {uploadedImages.map((img, idx) => {
                   const resolvedType = asAllowed(resolveUploadType(img));
                   return (
@@ -2004,7 +2019,7 @@ export default function ProductCreateModal({
           {files.length > 0 && (
             <div className="mt-4 space-y-3">
               <div className="space-y-2">
-                <p className="text-sm font-medium">업로드할 파일 타입</p>
+                <p className="text-sm font-medium">업로드 대기 중인 이미지</p>
                 {files.map((file, idx) => {
                   const key = fileKey(file);
                   const status = uploadingMap[key] ?? 'idle';
