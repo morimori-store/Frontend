@@ -971,6 +971,18 @@ export default function ProductCreateModal({
     const target = uploadedImages[idx];
     if (!target) return;
 
+    if (resolveUploadType(target) === 'THUMBNAIL') {
+      const hasMain = uploadedImages.some(
+        (img, index) =>
+          index !== idx && resolveUploadType(img) === 'MAIN' && isLinkedThumbnail(target, img),
+      );
+      if (hasMain) {
+        alert(
+          '대표 이미지가 남아 있는 동안에는 썸네일만 삭제할 수 없습니다. 대표 이미지를 먼저 삭제하거나 새로 업로드해주세요.',
+        );
+        return;
+      }
+    }
     const linkedThumbnails =
       resolveUploadType(target) === 'MAIN'
         ? uploadedImages
