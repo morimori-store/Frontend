@@ -1051,30 +1051,6 @@ export default function ProductCreateModal({
     });
   };
 
-  const handleServerImageTypeChange = (
-    idx: number,
-    nextType: AllowedType,
-  ) => {
-    setUploadedImages((prev) => {
-      const updated = prev.map((img) => ({ ...img }));
-      if (!updated[idx]) return prev;
-
-      if (nextType === 'MAIN') {
-        const other = updated.findIndex(
-          (img, i) =>
-            i !== idx && asAllowed(resolveUploadType(img)) === 'MAIN',
-        );
-        if (other >= 0) {
-          updated[other].type = 'ADDITIONAL';
-          updated[other].fileType = 'ADDITIONAL';
-        }
-      }
-      updated[idx].type = nextType;
-      updated[idx].fileType = nextType;
-      return updated;
-    });
-  };
-
   // 생성
   const handleCreate = async () => {
     const payload = buildPayload();
@@ -2025,19 +2001,9 @@ export default function ProductCreateModal({
                       {img.originalFileName || img.s3Key || `등록된 이미지 ${idx + 1}`}
                     </span>
                     <div className="flex items-center gap-2">
-                      <select
-                        value={resolvedType}
-                        onChange={(e) =>
-                          handleServerImageTypeChange(
-                            idx,
-                            e.target.value as AllowedType,
-                          )
-                        }
-                        className="rounded border border-[var(--color-gray-200)] py-1 px-2 text-xs"
-                      >
-                        <option value="MAIN">대표 이미지</option>
-                        <option value="ADDITIONAL">추가이미지</option>
-                      </select>
+                      <span className="px-2 py-1 rounded text-xs bg-gray-100 text-gray-700 border border-[var(--color-gray-200)]">
+                        {resolvedType === 'MAIN' ? '대표 이미지' : '추가이미지'}
+                      </span>
                       <span className="px-2 py-1 rounded text-xs bg-green-100 text-green-800">
                         등록됨
                       </span>
