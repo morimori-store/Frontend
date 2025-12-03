@@ -215,10 +215,10 @@ function toProductCreateDto(
     isRestock: !!opts.isRestock,
 
     sellingStartDate: payload.plannedSale
-      ? dateOnly(payload.plannedSale.startAt)
+      ? payload.plannedSale.startAt
       : null,
     sellingEndDate: payload.plannedSale
-      ? dateOnly(payload.plannedSale.endAt)
+      ? payload.plannedSale.endAt
       : null,
 
     tags: tagIds,
