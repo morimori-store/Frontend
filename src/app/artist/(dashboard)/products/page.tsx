@@ -535,7 +535,7 @@ export default function ProductsPage() {
       <ArtistDataTable
         columns={columns}
         rows={rows}
-        rowKey={(row) => row.productUuid ?? row.id}
+        rowKey={(row) => row.id}
         sortKey={sortKey as string | undefined}
         sortDirection={sortDirection}
         onSortChange={(key, direction) => updateSort(key, direction)}
