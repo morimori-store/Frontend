@@ -405,21 +405,6 @@ export default function ProductsPage() {
       // 상품 상세 불러오기
       const detail = await fetchProductDetail(uuid);
 
-      // 카테고리 필드 확인용
-      console.log('[detail categories]', {
-        categoryId: detail.categoryId,
-        parentCategoryId: detail.parentCategoryId,
-        category: (detail as any).category,
-        subCategoryId: (detail as any).subCategoryId,
-        parentCategory: (detail as any).parentCategory,
-      });
-
-      // 스냅샷도 참고하고 싶으면
-      console.log('[snapshot categories]', {
-        category1: row.payloadSnapshot?.category1,
-        category2: row.payloadSnapshot?.category2,
-      });
-
       const snapshot = row.payloadSnapshot;
 
       // 상세 응답 → 폼에 맞게 변환 (상세에 없으면 스냅샷 값 사용)
