@@ -3,14 +3,29 @@
 import { useState, useMemo, type Key, useEffect, useRef } from 'react';
 import Button from '@/components/Button';
 import ProductCreateModal from '@/components/artist/ProductCreateModal';
-import { AdditionalProductResponse, OptionResponse, ProductCreatePayload, ProductRow, TagResponse, UploadedImageInfo, UploadType } from '@/types/product';
-import { deleteProduct, fetchArtistProducts, fetchProductDetail, getProducts } from '@/services/products';
+import {
+  AdditionalProductResponse,
+  OptionResponse,
+  ProductCreatePayload,
+  ProductRow,
+  TagResponse,
+  UploadedImageInfo,
+  UploadType,
+} from '@/types/product';
+import {
+  deleteProduct,
+  fetchArtistProducts,
+  fetchProductDetail,
+  getProducts,
+} from '@/services/products';
 import SearchIcon from '@/assets/icon/search.svg';
-import ArtistDataTable, { ArtistTableColumn, SortDirection } from '@/components/artist/ArtistDataTable';
-
+import ArtistDataTable, {
+  ArtistTableColumn,
+  SortDirection,
+} from '@/components/artist/ArtistDataTable';
 
 type RowEx = ProductRow & {
-  // 서버 productId 
+  // 서버 productId
   productId?: string;
   // 서버 UUID
   productUuid?: string;
@@ -69,7 +84,9 @@ function getPageRange(current: number, total: number, count = 5) {
 }
 
 // 폼 → 판매상태
-function computeStatusFromPayload(p: ProductCreatePayload): 'BEFORE_SELLING' | 'SELLING' | 'SOLD_OUT' | 'END_OF_SALE' {
+function computeStatusFromPayload(
+  p: ProductCreatePayload,
+): 'BEFORE_SELLING' | 'SELLING' | 'SOLD_OUT' | 'END_OF_SALE' {
   const now = new Date();
   if (p.plannedSale) {
     const s = new Date(p.plannedSale.startAt);
@@ -161,8 +178,14 @@ export default function ProductsPage() {
   // 최초 마운트: 로컬 스토리지 → 메모리 적재
   useEffect(() => {
     snapshotsRef.current = { ...snapshotsRef.current, ...loadCache() };
-    uuidByIdRef.current = loadJson(UUID_BY_ID_KEY, {} as Record<string, string>);
-    uuidByNameRef.current = loadJson(UUID_BY_NAME_KEY, {} as Record<string, string>);
+    uuidByIdRef.current = loadJson(
+      UUID_BY_ID_KEY,
+      {} as Record<string, string>,
+    );
+    uuidByNameRef.current = loadJson(
+      UUID_BY_NAME_KEY,
+      {} as Record<string, string>,
+    );
   }, []);
 
   // 목록 조회 (작가 전용, 서버 0기반)
@@ -182,28 +205,35 @@ export default function ProductsPage() {
         });
         if (cancelled) return;
 
-        const elements = Number((data as { totalElements?: number }).totalElements ?? 0);
+        const elements = Number(
+          (data as { totalElements?: number }).totalElements ?? 0,
+        );
         const pages =
           Number((data as { totalPages?: number }).totalPages ?? 0) ||
           Math.max(1, Math.ceil(elements / size));
         setTotalElements(elements);
         setTotalPages(pages);
 
-        const content = ((data as { content?: unknown[] }).content ?? []) as ArtistProductItem[];
+        const content = ((data as { content?: unknown[] }).content ??
+          []) as ArtistProductItem[];
 
         const mapped: RowEx[] = content.map((p, idx) => {
           // 가능한 후보에서 uuid 추출
           let productUuid: string | undefined =
-            p.productUuid ?? p.uuid ?? p.productUuid ?? p.product?.uuid ?? undefined;
+            p.productUuid ??
+            p.uuid ??
+            p.productUuid ??
+            p.product?.uuid ??
+            undefined;
 
           const productId: string | undefined =
             p.productId != null
               ? String(p.productId)
               : p.id != null
-              ? String(p.id)
-              : p.productNumber != null
-              ? String(p.productNumber)
-              : undefined;
+                ? String(p.id)
+                : p.productNumber != null
+                  ? String(p.productNumber)
+                  : undefined;
 
           // 캐시로 보강
           if (!productUuid && productId) {
@@ -229,9 +259,9 @@ export default function ProductsPage() {
 
           // 스냅샷 우선 없으면 서버 상태
           const snap = productId ? snapshotsRef.current[productId] : undefined;
-          // 서버값 
+          // 서버값
           let code = (p.sellingStatus ?? p.status ?? '').toUpperCase();
-          
+
           if (!code && snap) {
             code = computeStatusFromPayload(snap);
           }
@@ -249,14 +279,17 @@ export default function ProductsPage() {
             createdAt,
             productUuid: p.productUuid,
             productId,
-            payloadSnapshot: productId ? snapshotsRef.current[productId] : undefined,
+            payloadSnapshot: productId
+              ? snapshotsRef.current[productId]
+              : undefined,
           };
         });
 
         setRows(mapped);
         setSelectedIds([]);
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : '목록 조회 실패');
+        if (!cancelled)
+          setError(e instanceof Error ? e.message : '목록 조회 실패');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -280,20 +313,25 @@ export default function ProductsPage() {
   );
 
   // 생성 완료
-  const handleCreated = ({ productUuid, payload }: { productUuid: string; payload: ProductCreatePayload }) => {
-
+  const handleCreated = ({
+    productUuid,
+    payload,
+  }: {
+    productUuid: string;
+    payload: ProductCreatePayload;
+  }) => {
     setRows((prev) => [
-   {
-     id: makeRowId(1, 0),
-     name: payload.title,
-     author: payload.brand,
-     status: '판매중',
-     createdAt: new Date().toLocaleDateString('en-CA'),
-     productUuid, // 서버가 준 UUID
-     payloadSnapshot: payload,
-   },
-   ...prev,
- ]);
+      {
+        id: makeRowId(1, 0),
+        name: payload.title,
+        author: payload.brand,
+        status: '판매중',
+        createdAt: new Date().toLocaleDateString('en-CA'),
+        productUuid, // 서버가 준 UUID
+        payloadSnapshot: payload,
+      },
+      ...prev,
+    ]);
 
     const nextTotal = totalElements + 1;
     const nextPages = Math.max(1, Math.ceil(nextTotal / size));
@@ -326,7 +364,9 @@ export default function ProductsPage() {
         | undefined;
 
       const hit = products?.find(
-        (prod) => (prod.brandName ?? '').trim() === brand && (prod.name ?? '').trim() === name,
+        (prod) =>
+          (prod.brandName ?? '').trim() === brand &&
+          (prod.name ?? '').trim() === name,
       );
 
       if (hit?.productUuid) {
@@ -339,7 +379,11 @@ export default function ProductsPage() {
         saveJson(UUID_BY_NAME_KEY, uuidByNameRef.current);
 
         // 행에도 즉시 반영
-        setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, productUuid: hit.productUuid } : r)));
+        setRows((prev) =>
+          prev.map((r) =>
+            r.id === row.id ? { ...r, productUuid: hit.productUuid } : r,
+          ),
+        );
         return hit.productUuid;
       }
 
@@ -351,88 +395,163 @@ export default function ProductsPage() {
 
   // 행 클릭
   const handleRowClick = async (row: RowEx) => {
-  const uuid = await resolveUuidForRow(row);
-  if (!uuid) {
-    alert('이 상품의 UUID를 찾을 수 없습니다.');
-    return;
-  }
+    const uuid = await resolveUuidForRow(row);
+    if (!uuid) {
+      alert('이 상품의 UUID를 찾을 수 없습니다.');
+      return;
+    }
 
-  try {
-    // 상품 상세 불러오기
-    const detail = await fetchProductDetail(uuid);
+    try {
+      // 상품 상세 불러오기
+      const detail = await fetchProductDetail(uuid);
 
-    // 상세 응답 → 폼에 맞게 변환
-    const payload: ProductCreatePayload = {
-  brand: detail.brandName ?? '',
-  title: detail.name ?? '',
-  modelName: detail.essentialInfo?.productModelName ?? '',
-  category1: '',
-  category2: '',
-  size: detail.essentialInfo?.size ?? '',
-  material: detail.essentialInfo?.material ?? '',
-  origin: detail.essentialInfo?.origin ?? '',
-  price: detail.price ?? 0,
-  discountRate: detail.discountRate ?? 0,
-  stock: detail.stock ?? 0,
-  minQty: detail.minQuantity ?? 1,
-  maxQty: detail.maxQuantity ?? 1,
-  bundleShipping: detail.bundleShippingAvailable ?? false,
-  shipping: {
-    type:
-      detail.deliveryType === 'CONDITIONAL_FREE'
-        ? 'CONDITIONAL'
-        : detail.deliveryType === 'PAID'
-        ? 'PAID'
-        : 'FREE',
-    fee: detail.deliveryCharge ?? 0,
-    freeThreshold: detail.conditionalFreeAmount ?? null,
-    jejuExtraFee: detail.additionalShippingCharge ?? 0,
-  },
-  plannedSale:
-    detail.isPlanned && detail.sellingStartDate
-      ? { startAt: detail.sellingStartDate, endAt: detail.sellingEndDate ?? null }
-      : null,
+      // 카테고리 필드 확인용
+      console.log('[detail categories]', {
+        categoryId: detail.categoryId,
+        parentCategoryId: detail.parentCategoryId,
+        category: (detail as any).category,
+        subCategoryId: (detail as any).subCategoryId,
+        parentCategory: (detail as any).parentCategory,
+      });
 
-  tags: detail.tags?.map((t: TagResponse) => t.name).filter(Boolean) as string[] ?? [],
-  options:
-    detail.options?.map((o: OptionResponse) => ({
-      id: crypto.randomUUID(),
-      name: o.optionName,
-      stock: o.optionStock,
-      extraPrice: o.optionAdditionalPrice,
-    })) ?? [],
-  addons:
-    detail.additionalProducts?.map((a: AdditionalProductResponse) => ({
-      id: crypto.randomUUID(),
-      name: a.name,
-      stock: a.stock,
-      extraPrice: a.price,
-    })) ?? [],
+      // 스냅샷도 참고하고 싶으면
+      console.log('[snapshot categories]', {
+        category1: row.payloadSnapshot?.category1,
+        category2: row.payloadSnapshot?.category2,
+      });
 
-  certification: detail.essentialInfo?.certification ?? false,
-  description: detail.description ?? '',
-};
-    const imagesSnapshot: UploadedImageInfo[] =
-      detail.images?.map((img) => ({
-        url: img.url ?? '',
-        type:
-          img.type === "MAIN" ||
-          img.type === "THUMBNAIL" ||
-          img.type === "ADDITIONAL"
-            ? img.type
-            : "ADDITIONAL",
-        s3Key: img.s3Key ?? crypto.randomUUID(),
-        originalFileName: img.originalFileName ?? '',
-      })) ?? [];
+      const snapshot = row.payloadSnapshot;
 
-    // 모달 열기
-    setEditingRow({ ...row, productUuid: uuid, payloadSnapshot: payload, imagesSnapshot });
-    setMode('edit');
-    setOpenModal(true);
-  } catch (err) {
-    alert((err as Error).message || '상품 상세 조회 실패');
-  }
-};
+      // 상세 응답 → 폼에 맞게 변환 (상세에 없으면 스냅샷 값 사용)
+      const payload: ProductCreatePayload = {
+        brand: detail.brandName ?? snapshot?.brand ?? '',
+        title: detail.name ?? snapshot?.title ?? '',
+        modelName:
+          detail.essentialInfo?.productModelName ?? snapshot?.modelName ?? '',
+        // 1차만 있는 경우(categoryId만 있음) → category1에 넣고 category2는 빈 값
+        // 2차가 있는 경우(parentCategoryId + categoryId) → category1=parent, category2=child
+        ...(() => {
+          const childId =
+            detail.categoryId ??
+            (
+              detail as unknown as {
+                category?: { id?: number; parentId?: number };
+              }
+            ).category?.id ??
+            (detail as unknown as { subCategoryId?: number }).subCategoryId ??
+            null;
+          const parentId =
+            detail.parentCategoryId ??
+            (detail as unknown as { category?: { parentId?: number } }).category
+              ?.parentId ??
+            (detail as unknown as { parentCategory?: { id?: number } })
+              .parentCategory?.id ??
+            null;
+
+          if (parentId != null && childId != null) {
+            return { category1: String(parentId), category2: String(childId) };
+          }
+          if (childId != null) {
+            return { category1: String(childId), category2: '' };
+          }
+          return {
+            category1: snapshot?.category1 ?? '',
+            category2: snapshot?.category2 ?? '',
+          };
+        })(),
+        size: detail.essentialInfo?.size ?? snapshot?.size ?? '',
+        material: detail.essentialInfo?.material ?? snapshot?.material ?? '',
+        origin: detail.essentialInfo?.origin ?? snapshot?.origin ?? '',
+        price: detail.price ?? snapshot?.price ?? 0,
+        discountRate: detail.discountRate ?? snapshot?.discountRate ?? 0,
+        stock: detail.stock ?? snapshot?.stock ?? 0,
+        minQty: detail.minQuantity ?? snapshot?.minQty ?? 1,
+        maxQty: detail.maxQuantity ?? snapshot?.maxQty ?? 1,
+        bundleShipping:
+          detail.bundleShippingAvailable ?? snapshot?.bundleShipping ?? false,
+        shipping: {
+          type:
+            detail.deliveryType === 'CONDITIONAL_FREE'
+              ? 'CONDITIONAL'
+              : detail.deliveryType === 'PAID'
+                ? 'PAID'
+                : 'FREE',
+          fee: detail.deliveryCharge ?? snapshot?.shipping?.fee ?? 0,
+          freeThreshold:
+            detail.conditionalFreeAmount ??
+            snapshot?.shipping?.freeThreshold ??
+            null,
+          jejuExtraFee:
+            detail.additionalShippingCharge ??
+            snapshot?.shipping?.jejuExtraFee ??
+            0,
+        },
+        plannedSale:
+          detail.isPlanned && detail.sellingStartDate
+            ? {
+                startAt: detail.sellingStartDate,
+                endAt: detail.sellingEndDate ?? null,
+              }
+            : (snapshot?.plannedSale ?? null),
+
+        tags:
+          (detail.tags
+            ?.map((t: TagResponse) => t.name || t.tagName)
+            .filter(Boolean) as string[]) ??
+          snapshot?.tags ??
+          [],
+        options:
+          detail.options?.map((o: OptionResponse) => ({
+            id: crypto.randomUUID(),
+            name: o.optionName,
+            stock: o.optionStock,
+            extraPrice: o.optionAdditionalPrice,
+          })) ??
+          snapshot?.options ??
+          [],
+        addons:
+          detail.additionalProducts?.map((a: AdditionalProductResponse) => ({
+            id: crypto.randomUUID(),
+            name: a.name,
+            stock: a.stock,
+            extraPrice: a.price,
+          })) ??
+          snapshot?.addons ??
+          [],
+
+        certification:
+          detail.essentialInfo?.certification ??
+          snapshot?.certification ??
+          false,
+        isRestock: detail.isRestock ?? snapshot?.isRestock ?? false,
+        description: detail.description ?? snapshot?.description ?? '',
+      };
+      const imagesSnapshot: UploadedImageInfo[] =
+        detail.images?.map((img) => ({
+          url: img.url ?? '',
+          type:
+            img.type === 'MAIN' ||
+            img.type === 'THUMBNAIL' ||
+            img.type === 'ADDITIONAL'
+              ? img.type
+              : 'ADDITIONAL',
+          s3Key: img.s3Key ?? crypto.randomUUID(),
+          originalFileName: img.originalFileName ?? '',
+        })) ?? [];
+
+      // 모달 열기
+      setEditingRow({
+        ...row,
+        productUuid: uuid,
+        payloadSnapshot: payload,
+        imagesSnapshot,
+      });
+      setMode('edit');
+      setOpenModal(true);
+    } catch (err) {
+      alert((err as Error).message || '상품 상세 조회 실패');
+    }
+  };
 
   // 상단 - 선택 수정
   const handleTopEdit = () => {
@@ -461,7 +580,9 @@ export default function ProductsPage() {
     if (!withUuid.length) {
       alert(
         '선택한 항목에서 productUuid를 찾지 못해 삭제할 수 없습니다.\n' +
-          (unresolved.length ? unresolved.map((r) => `- ${r.author} / ${r.name}`).join('\n') : ''),
+          (unresolved.length
+            ? unresolved.map((r) => `- ${r.author} / ${r.name}`).join('\n')
+            : ''),
       );
       return;
     }
@@ -470,12 +591,16 @@ export default function ProductsPage() {
     if (!ok) return;
 
     setLoading(true);
-    const results = await Promise.allSettled(withUuid.map((x) => deleteProduct(x.uuid)));
+    const results = await Promise.allSettled(
+      withUuid.map((x) => deleteProduct(x.uuid)),
+    );
     setLoading(false);
 
     const successUiIds = new Set(
       results
-        .map((res, i) => (res.status === 'fulfilled' ? withUuid[i].row.id : null))
+        .map((res, i) =>
+          res.status === 'fulfilled' ? withUuid[i].row.id : null,
+        )
         .filter(Boolean) as string[],
     );
     setRows((prev) => prev.filter((r) => !successUiIds.has(r.id)));
@@ -483,30 +608,44 @@ export default function ProductsPage() {
 
     const failed = results
       .map((res, i) => ({ res, row: withUuid[i].row }))
-      .filter((x): x is { res: PromiseRejectedResult; row: RowEx } => x.res.status === 'rejected');
+      .filter(
+        (x): x is { res: PromiseRejectedResult; row: RowEx } =>
+          x.res.status === 'rejected',
+      );
 
     let msg = '';
     if (unresolved.length) {
-      msg += `uuid 미해결: ${unresolved.length}건\n` + unresolved.map((r) => `- ${r.author} / ${r.name}`).join('\n') + '\n\n';
+      msg +=
+        `uuid 미해결: ${unresolved.length}건\n` +
+        unresolved.map((r) => `- ${r.author} / ${r.name}`).join('\n') +
+        '\n\n';
     }
     if (failed.length) {
       msg +=
         `삭제 실패: ${failed.length}건\n` +
         failed
-          .map((f) => `- ${f.row.author} / ${f.row.name}: ${(f.res.reason as Error)?.message ?? '오류'}`)
+          .map(
+            (f) =>
+              `- ${f.row.author} / ${f.row.name}: ${(f.res.reason as Error)?.message ?? '오류'}`,
+          )
           .join('\n');
     }
     alert(msg || '삭제가 완료되었습니다.');
   };
 
   // 모달에서 저장해 온 스냅샷을 반영
-  const handleSaveSnapshot = (productId: string, payload: ProductCreatePayload) => {
+  const handleSaveSnapshot = (
+    productId: string,
+    payload: ProductCreatePayload,
+  ) => {
     snapshotsRef.current[productId] = payload;
     const cache = loadCache();
     cache[productId] = payload;
     saveCache(cache);
     setRows((prev) =>
-      prev.map((r) => (r.productId === productId ? { ...r, payloadSnapshot: payload } : r)),
+      prev.map((r) =>
+        r.productId === productId ? { ...r, payloadSnapshot: payload } : r,
+      ),
     );
   };
 
@@ -515,10 +654,18 @@ export default function ProductsPage() {
       <div className="flex justify-between items-center">
         <h3 className="text-2xl font-bold mb-[20px]">상품 관리</h3>
         <div className="flex gap-2">
-          <Button variant="tertiary" onClick={handleTopDelete} disabled={selectedRows.length === 0}>
+          <Button
+            variant="tertiary"
+            onClick={handleTopDelete}
+            disabled={selectedRows.length === 0}
+          >
             상품 삭제
           </Button>
-          <Button variant="outline" onClick={handleTopEdit} disabled={selectedRows.length !== 1}>
+          <Button
+            variant="outline"
+            onClick={handleTopEdit}
+            disabled={selectedRows.length !== 1}
+          >
             상품 수정
           </Button>
           <Button
@@ -552,10 +699,20 @@ export default function ProductsPage() {
       {/* 페이지네이션 */}
       <div className="relative mt-6 flex items-center justify-center">
         <nav className="flex items-center gap-2 text-sm text-[var(--color-gray-700)]">
-          <button onClick={() => gotoPage(1)} disabled={page <= 1} className="px-2 py-1 hover:text-primary disabled:opacity-40" aria-label="First">
+          <button
+            onClick={() => gotoPage(1)}
+            disabled={page <= 1}
+            className="px-2 py-1 hover:text-primary disabled:opacity-40"
+            aria-label="First"
+          >
             «
           </button>
-          <button onClick={() => gotoPage(Math.max(1, page - 1))} disabled={page <= 1} className="px-2 py-1 hover:text-primary disabled:opacity-40" aria-label="Previous">
+          <button
+            onClick={() => gotoPage(Math.max(1, page - 1))}
+            disabled={page <= 1}
+            className="px-2 py-1 hover:text-primary disabled:opacity-40"
+            aria-label="Previous"
+          >
             ‹
           </button>
 
@@ -570,11 +727,22 @@ export default function ProductsPage() {
             </button>
           ))}
 
-          <button onClick={() => gotoPage(Math.min(totalPages, page + 1))} disabled={page >= totalPages} className="px-2 py-1 hover:text-primary disabled:opacity-40" aria-label="Next">
+          <button
+            onClick={() => gotoPage(Math.min(totalPages, page + 1))}
+            disabled={page >= totalPages}
+            className="px-2 py-1 hover:text-primary disabled:opacity-40"
+            aria-label="Next"
+          >
             ›
           </button>
-          <button onClick={() => gotoPage(totalPages)} disabled={page >= totalPages} className="px-2 py-1 hover:text-primary disabled:opacity-40" aria-label="Last">
-            »</button>
+          <button
+            onClick={() => gotoPage(totalPages)}
+            disabled={page >= totalPages}
+            className="px-2 py-1 hover:text-primary disabled:opacity-40"
+            aria-label="Last"
+          >
+            »
+          </button>
         </nav>
 
         <ProductCreateModal
@@ -601,7 +769,10 @@ export default function ProductsPage() {
             placeholder="검색어를 입력하세요"
             className="h-full flex-1 bg-transparent pr-8 outline-none placeholder:text-[var(--color-gray-400)]"
           />
-          <SearchIcon className="absolute right-4 h-4 w-4 text-primary" aria-hidden />
+          <SearchIcon
+            className="absolute right-4 h-4 w-4 text-primary"
+            aria-hidden
+          />
         </form>
       </div>
     </>

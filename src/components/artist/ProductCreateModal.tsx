@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import X from '@/assets/icon/x.svg';
 import Paperclip from '@/assets/icon/paperclip2.svg';
 import NoticeEditor from '@/components/editor/NoticeEditor';
@@ -46,8 +46,7 @@ const fileKey = (f: File) => `${f.name}-${f.size}-${f.lastModified}`;
 type AllowedType = Extract<UploadType, 'MAIN' | 'ADDITIONAL'>;
 type NormalizedType = Extract<UploadType, 'MAIN' | 'THUMBNAIL' | 'ADDITIONAL'>;
 const normalizeUploadType = (t?: UploadType | null): NormalizedType => {
-  const normalized =
-    typeof t === 'string' ? t.trim().toUpperCase() : '';
+  const normalized = typeof t === 'string' ? t.trim().toUpperCase() : '';
   if (normalized === 'MAIN') return 'MAIN';
   if (normalized === 'THUMBNAIL') return 'THUMBNAIL';
   if (normalized === 'ADDITIONAL') return 'ADDITIONAL';
@@ -215,12 +214,8 @@ function toProductCreateDto(
     isPlanned: !!payload.plannedSale,
     isRestock: !!opts.isRestock,
 
-    sellingStartDate: payload.plannedSale
-      ? payload.plannedSale.startAt
-      : null,
-    sellingEndDate: payload.plannedSale
-      ? payload.plannedSale.endAt
-      : null,
+    sellingStartDate: payload.plannedSale ? payload.plannedSale.startAt : null,
+    sellingEndDate: payload.plannedSale ? payload.plannedSale.endAt : null,
 
     tags: tagIds,
 
@@ -303,6 +298,7 @@ export default function ProductCreateModal({
   const [modelName, setModelName] = useState('');
   const [category1, setCategory1] = useState('');
   const [category2, setCategory2] = useState('');
+  const hydratedRef = useRef(false);
 
   // 카테고리/태그
   const [catTree, setCatTree] = useState<Category[]>([]);
@@ -434,9 +430,13 @@ export default function ProductCreateModal({
   }, [open]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      hydratedRef.current = false;
+      return;
+    }
 
     if (mode === 'create') {
+      hydratedRef.current = false;
       // 초기화
       setBrand(initialBrand ?? '모리모리');
       setTitle('');
@@ -483,17 +483,52 @@ export default function ProductCreateModal({
       setUploadingMap({});
       setFileS3Map({});
       setFileTypes([]);
+      return; // create 모드 초기화 후 종료
     }
 
-    else if (mode === 'edit' && initialPayload) {
+    if (open && mode === 'edit' && initialPayload && !hydratedRef.current) {
       hydrateFromPayload(initialPayload, initialImages);
+      hydratedRef.current = true;
     }
-  }, [open]);
+  }, [open, mode, initialPayload, initialImages, initialBrand, initialBizInfo]);
 
   const subOptions = useMemo(() => {
     const root = catTree.find((c) => String(c.id) === category1);
     return root?.subCategories ?? [];
   }, [catTree, category1]);
+
+  // 카테고리 데이터가 로드된 후, category1이 비어 있고 category2만 있는 경우 parent를 역추적해 채워준다.
+  useEffect(() => {
+    // edit 모드에서 catTree가 늦게 도착하면 카테고리 채워주기
+    if (mode !== 'edit' || !initialPayload) return;
+
+    if (!category1 && initialPayload.category1) {
+      setCategory1(initialPayload.category1);
+    }
+    if (!category2 && initialPayload?.category2) {
+      setCategory2(initialPayload.category2);
+    }
+
+    if (!category1 && category2) {
+      const findNode = (nodes: Category[], target: string): Category | null => {
+        for (const node of nodes) {
+          if (String(node.id) === target) return node;
+          if (node.subCategories?.length) {
+            const found = findNode(node.subCategories, target);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+
+      const node = findNode(catTree, category2);
+      if (node?.parentId != null) {
+        setCategory1(String(node.parentId));
+      }
+    }
+  }, [catTree, category1, category2, mode, initialPayload]);
+
+
 
   // 태그명 키를 정규화해서 저장
   const tagDict = useMemo(() => {
@@ -560,7 +595,7 @@ export default function ProductCreateModal({
     setSaleStart(planned ? (payload.plannedSale?.startAt ?? '') : '');
     setSaleEnd(planned ? (payload.plannedSale?.endAt ?? '') : '');
 
-    setIsRestock(false);
+    setIsRestock(!!payload.isRestock);
 
     setTags(payload.tags ?? []);
     const usingOptions =
@@ -578,6 +613,8 @@ export default function ProductCreateModal({
       businessAddress: prev.businessAddress ?? '',
       telecomSalesNumber: prev.telecomSalesNumber ?? '',
     }));
+
+    setLawCertRequired(!!payload.certification);
 
     setEditorValue(payload.description ?? '');
     setFiles([]);
@@ -662,7 +699,9 @@ export default function ProductCreateModal({
       (type, idx) => type === 'MAIN' && files[idx],
     );
     if (serverMainExists && pendingMainExists) {
-      alert('대표 이미지는 1개만 지정할 수 있습니다. 기존 대표 이미지를 삭제한 뒤 다시 시도해주세요.');
+      alert(
+        '대표 이미지는 1개만 지정할 수 있습니다. 기존 대표 이미지를 삭제한 뒤 다시 시도해주세요.',
+      );
       setUploadingMap((prev) => {
         const next = { ...prev };
         targets.forEach(({ key }) => (next[key] = 'pending'));
@@ -690,7 +729,9 @@ export default function ProductCreateModal({
         .map((_, idx) => idx)
         .filter((idx) => !targets.some((t) => t.index === idx));
       setFiles((prev) => prev.filter((_, idx) => keepIndexes.includes(idx)));
-      setFileTypes((prev) => prev.filter((_, idx) => keepIndexes.includes(idx)));
+      setFileTypes((prev) =>
+        prev.filter((_, idx) => keepIndexes.includes(idx)),
+      );
       setPreviews((prev) => prev.filter((_, idx) => keepIndexes.includes(idx)));
       setThumbnailFlags((prev) =>
         prev.filter((_, idx) => keepIndexes.includes(idx)),
@@ -710,8 +751,7 @@ export default function ProductCreateModal({
         return next;
       });
     } catch (e) {
-      const msg =
-        e instanceof Error ? e.message : '이미지 업로드 실패';
+      const msg = e instanceof Error ? e.message : '이미지 업로드 실패';
       alert(msg);
       setUploadingMap((prev) => {
         const next = { ...prev };
@@ -1001,7 +1041,9 @@ export default function ProductCreateModal({
     if (resolveUploadType(target) === 'THUMBNAIL') {
       const hasMain = uploadedImages.some(
         (img, index) =>
-          index !== idx && resolveUploadType(img) === 'MAIN' && isLinkedThumbnail(target, img),
+          index !== idx &&
+          resolveUploadType(img) === 'MAIN' &&
+          isLinkedThumbnail(target, img),
       );
       if (hasMain) {
         alert(
@@ -1027,11 +1069,7 @@ export default function ProductCreateModal({
       try {
         await deleteProductImage(img.s3Key);
       } catch (e) {
-        alert(
-          e instanceof Error
-            ? e.message
-            : '이미지를 삭제하지 못했습니다.',
-        );
+        alert(e instanceof Error ? e.message : '이미지를 삭제하지 못했습니다.');
         return;
       }
     }
@@ -1039,7 +1077,9 @@ export default function ProductCreateModal({
     const removeIndexSet = new Set(removals.map(({ index }) => index));
     setUploadedImages((prev) =>
       dedupeImages(
-        prev.filter((_, i) => !removeIndexSet.has(i)).map((img) => ({ ...img })),
+        prev
+          .filter((_, i) => !removeIndexSet.has(i))
+          .map((img) => ({ ...img })),
       ),
     );
     setUploadingMap((prev) => {
@@ -1986,38 +2026,43 @@ export default function ProductCreateModal({
                 {uploadedImages.map((img, idx) => {
                   const resolvedType = asAllowed(resolveUploadType(img));
                   return (
-                  <div
-                    key={img.s3Key ?? img.originalFileName ?? `server-${idx}`}
-                    className="flex items-center gap-3 text-sm"
-                  >
-                    <div className="w-10 h-10 rounded overflow-hidden bg-gray-100 flex items-center justify-center shrink-0">
-                      <img
-                        src={img.url}
-                        alt={img.originalFileName ?? `이미지 ${idx + 1}`}
-                        className="w-full h-full object-cover"
-                        draggable={false}
-                      />
-                    </div>
-                    <span className="flex-1 truncate">
-                      {img.originalFileName || img.s3Key || `등록된 이미지 ${idx + 1}`}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <span className="px-2 py-1 rounded text-xs bg-gray-100 text-gray-700 border border-[var(--color-gray-200)]">
-                        {resolvedType === 'MAIN' ? '대표 이미지' : '추가이미지'}
-                      </span>
-                      <span className="px-2 py-1 rounded text-xs bg-green-100 text-green-800">
-                        등록됨
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeServerImage(idx)}
-                      className="ml-2 rounded border px-2 py-1 hover:bg-black/5"
+                    <div
+                      key={img.s3Key ?? img.originalFileName ?? `server-${idx}`}
+                      className="flex items-center gap-3 text-sm"
                     >
-                      삭제
-                    </button>
-                  </div>
-                )})}
+                      <div className="w-10 h-10 rounded overflow-hidden bg-gray-100 flex items-center justify-center shrink-0">
+                        <img
+                          src={img.url}
+                          alt={img.originalFileName ?? `이미지 ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                          draggable={false}
+                        />
+                      </div>
+                      <span className="flex-1 truncate">
+                        {img.originalFileName ||
+                          img.s3Key ||
+                          `등록된 이미지 ${idx + 1}`}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-1 rounded text-xs bg-gray-100 text-gray-700 border border-[var(--color-gray-200)]">
+                          {resolvedType === 'MAIN'
+                            ? '대표 이미지'
+                            : '추가이미지'}
+                        </span>
+                        <span className="px-2 py-1 rounded text-xs bg-green-100 text-green-800">
+                          등록됨
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeServerImage(idx)}
+                        className="ml-2 rounded border px-2 py-1 hover:bg-black/5"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
