@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import X from '@/assets/icon/x.svg';
 import Paperclip from '@/assets/icon/paperclip2.svg';
 import NoticeEditor from '@/components/editor/NoticeEditor';
@@ -299,6 +299,7 @@ export default function ProductCreateModal({
   const [category1, setCategory1] = useState('');
   const [category2, setCategory2] = useState('');
   const hydratedRef = useRef(false);
+  const bizLoadedRef = useRef(false);
 
   // 카테고리/태그
   const [catTree, setCatTree] = useState<Category[]>([]);
@@ -378,6 +379,55 @@ export default function ProductCreateModal({
   // 파일 → s3Key 매핑
   const [fileS3Map, setFileS3Map] = useState<Record<string, string | null>>({});
 
+  // 초기화
+  const resetForm = () => {
+    setBrand(initialBrand ?? '모리모리');
+    setTitle('');
+    setModelName('');
+    setCategory1('');
+    setCategory2('');
+    setSize('');
+    setMaterial('');
+    setOrigin('');
+    setPrice(0);
+    setDiscountRate(0);
+    setStock(0);
+    setMinQty(1);
+    setMaxQty(0);
+    setBundleShipping(true);
+    setShippingType('FREE');
+    setShippingFee(0);
+    setFreeThreshold(0);
+    setJejuExtraFee(0);
+    setIsPlanned(false);
+    setSaleStart('');
+    setSaleEnd('');
+    setTags([]);
+    setIsRestock(false);
+    setUseOptions(false);
+    setOptions([]);
+    setAddons([]);
+    setLawCertRequired(false);
+    setBizInfo({
+      businessName: initialBizInfo?.businessName ?? '',
+      businessNumber: initialBizInfo?.businessNumber ?? '',
+      ownerName: initialBizInfo?.ownerName ?? '',
+      asManager: initialBizInfo?.asManager ?? '',
+      email: initialBizInfo?.email ?? '',
+      businessAddress: initialBizInfo?.businessAddress ?? '',
+      telecomSalesNumber: initialBizInfo?.telecomSalesNumber ?? '',
+    });
+    setEditorValue('');
+
+    setFiles([]);
+    setPreviews([]);
+    setUploadedImages([]);
+    setThumbnailFlags([]);
+    setUploadingMap({});
+    setFileS3Map({});
+    setFileTypes([]);
+  };
+
   // ESC로 닫기
   useEffect(() => {
     if (!editorFullscreen) return;
@@ -429,69 +479,6 @@ export default function ProductCreateModal({
     })();
   }, [open]);
 
-  useEffect(() => {
-    if (!open) {
-      hydratedRef.current = false;
-      return;
-    }
-
-    if (mode === 'create') {
-      hydratedRef.current = false;
-      // 초기화
-      setBrand(initialBrand ?? '모리모리');
-      setTitle('');
-      setModelName('');
-      setCategory1('');
-      setCategory2('');
-      setSize('');
-      setMaterial('');
-      setOrigin('');
-      setPrice(0);
-      setDiscountRate(0);
-      setStock(0);
-      setMinQty(1);
-      setMaxQty(0);
-      setBundleShipping(true);
-      setShippingType('FREE');
-      setShippingFee(0);
-      setFreeThreshold(0);
-      setJejuExtraFee(0);
-      setIsPlanned(false);
-      setSaleStart('');
-      setSaleEnd('');
-      setTags([]);
-      setIsRestock(false);
-      setUseOptions(false);
-      setOptions([]);
-      setAddons([]);
-      setLawCertRequired(false);
-      setBizInfo({
-        businessName: initialBizInfo?.businessName ?? '',
-        businessNumber: initialBizInfo?.businessNumber ?? '',
-        ownerName: initialBizInfo?.ownerName ?? '',
-        asManager: initialBizInfo?.asManager ?? '',
-        email: initialBizInfo?.email ?? '',
-        businessAddress: initialBizInfo?.businessAddress ?? '',
-        telecomSalesNumber: initialBizInfo?.telecomSalesNumber ?? '',
-      });
-      setEditorValue('');
-
-      setFiles([]);
-      setPreviews([]);
-      setUploadedImages([]);
-      setThumbnailFlags([]);
-      setUploadingMap({});
-      setFileS3Map({});
-      setFileTypes([]);
-      return; // create 모드 초기화 후 종료
-    }
-
-    if (open && mode === 'edit' && initialPayload && !hydratedRef.current) {
-      hydrateFromPayload(initialPayload, initialImages);
-      hydratedRef.current = true;
-    }
-  }, [open, mode, initialPayload, initialImages, initialBrand, initialBizInfo]);
-
   const subOptions = useMemo(() => {
     const root = catTree.find((c) => String(c.id) === category1);
     return root?.subCategories ?? [];
@@ -527,8 +514,6 @@ export default function ProductCreateModal({
       }
     }
   }, [catTree, category1, category2, mode, initialPayload]);
-
-
 
   // 태그명 키를 정규화해서 저장
   const tagDict = useMemo(() => {
@@ -632,6 +617,63 @@ export default function ProductCreateModal({
       ),
     );
   }
+
+  // 사업자 정보 불러오기 (자동 호출)
+  const loadBizInfoOnce = useCallback(async () => {
+    if (bizLoadedRef.current) return;
+    bizLoadedRef.current = true;
+    setBizLoading(true);
+    const data = await fetchArtistBusinessInfo();
+    setBizLoading(false);
+    if (!data) return;
+    setBizInfo({
+      businessName: data.businessName ?? '',
+      businessNumber: data.businessNumber ?? '',
+      ownerName: data.ownerName ?? '',
+      asManager: data.asManager ?? '',
+      email: data.email ?? '',
+      businessAddress: data.businessAddress ?? '',
+      telecomSalesNumber: data.telecomSalesNumber ?? '',
+    });
+  }, []);
+
+  // 모달 열릴 때 폼 초기화 및 사업자 정보 로드
+  useEffect(() => {
+    if (!open) {
+      hydratedRef.current = false;
+      bizLoadedRef.current = false; // 모달 닫힐 때만 리셋
+      return;
+    }
+
+    if (mode === 'create' && !hydratedRef.current) {
+      hydratedRef.current = true;
+      resetForm();
+      return;
+    }
+
+    if (mode === 'edit' && initialPayload && !hydratedRef.current) {
+      hydratedRef.current = true;
+      hydrateFromPayload(initialPayload, initialImages);
+      void loadBizInfoOnce();
+    }
+  }, [open, mode, initialPayload, initialImages, loadBizInfoOnce]);
+
+  // 사업자 정보 불러오기 버튼(수동 호출)
+  const handleBizInfoReload = async () => {
+    setBizLoading(true);
+    const data = await fetchArtistBusinessInfo();
+    setBizLoading(false);
+    if (!data) return;
+    setBizInfo({
+      businessName: data.businessName ?? '',
+      businessNumber: data.businessNumber ?? '',
+      ownerName: data.ownerName ?? '',
+      asManager: data.asManager ?? '',
+      email: data.email ?? '',
+      businessAddress: data.businessAddress ?? '',
+      telecomSalesNumber: data.telecomSalesNumber ?? '',
+    });
+  };
 
   // === 파일 선택 (즉시 업로드 X) ===
   const handleSelectFiles = (incoming: File[]) => {
@@ -1783,76 +1825,67 @@ export default function ProductCreateModal({
               <div className="md:col-span-3">
                 <div className="flex items-center gap-3 mb-2">
                   <span className="w-40 text-sm">사업자 정보</span>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      setBizLoading(true);
-                      const data = await fetchArtistBusinessInfo();
-                      setBizLoading(false);
-                      if (!data) return;
-                      setBizInfo((prev) => ({
-                        businessName: data.businessName ?? prev.businessName,
-                        businessNumber:
-                          data.businessNumber ?? prev.businessNumber,
-                        ownerName: data.ownerName ?? prev.ownerName,
-                        asManager: data.asManager ?? prev.asManager,
-                        email: data.email ?? prev.email,
-                        businessAddress:
-                          data.businessAddress ?? prev.businessAddress,
-                        telecomSalesNumber:
-                          data.telecomSalesNumber ?? prev.telecomSalesNumber,
-                      }));
-                    }}
-                    className="shrink-0 text-sm border rounded px-3 py-2 hover:bg-black/5 disabled:opacity-60"
-                    disabled={bizLoading}
-                  >
-                    {bizLoading ? '불러오는 중…' : '불러오기'}
-                  </button>
+                  {mode === 'create' && (
+                    <button
+                      type="button"
+                      onClick={handleBizInfoReload}
+                      className="shrink-0 text-sm border rounded px-3 py-2 hover:bg-black/5 disabled:opacity-60"
+                      disabled={bizLoading}
+                    >
+                      {bizLoading ? '불러오는 중…' : '불러오기'}
+                    </button>
+                  )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-gray-600">
                   <input
+                    disabled
                     value={bizInfo.businessName}
                     onChange={(e) =>
                       setBizInfo({ ...bizInfo, businessName: e.target.value })
                     }
                     placeholder="제조자"
-                    className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
+                    className="rounded bg-gray-50 border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                   />
                   <input
+                    disabled
                     value={bizInfo.businessNumber}
                     onChange={(e) =>
                       setBizInfo({ ...bizInfo, businessNumber: e.target.value })
                     }
                     placeholder="사업자 등록 번호 (예: 123-45-67890)"
-                    className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
+                    className="rounded bg-gray-50 border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                   />
                   <input
+                    disabled
                     value={bizInfo.ownerName}
                     onChange={(e) =>
                       setBizInfo({ ...bizInfo, ownerName: e.target.value })
                     }
                     placeholder="대표자명"
-                    className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
+                    className="rounded bg-gray-50 border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                   />
                   <input
+                    disabled
                     value={bizInfo.asManager}
                     onChange={(e) =>
                       setBizInfo({ ...bizInfo, asManager: e.target.value })
                     }
                     placeholder="A/S 책임자 / 전화번호"
-                    className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
+                    className="rounded bg-gray-50 border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                   />
                   <input
+                    disabled
                     type="email"
                     value={bizInfo.email}
                     onChange={(e) =>
                       setBizInfo({ ...bizInfo, email: e.target.value })
                     }
                     placeholder="전자우편주소"
-                    className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
+                    className="rounded bg-gray-50  border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                   />
                   <input
+                    disabled
                     value={bizInfo.businessAddress}
                     onChange={(e) =>
                       setBizInfo({
@@ -1861,9 +1894,10 @@ export default function ProductCreateModal({
                       })
                     }
                     placeholder="사업장 소재지"
-                    className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
+                    className="rounded bg-gray-50 border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                   />
                   <input
+                    disabled
                     value={bizInfo.telecomSalesNumber}
                     onChange={(e) =>
                       setBizInfo({
@@ -1872,13 +1906,12 @@ export default function ProductCreateModal({
                       })
                     }
                     placeholder="통신 판매업 신고 번호"
-                    className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm md:col-span-2"
+                    className="rounded bg-gray-50 border border-[var(--color-gray-200)] px-3 py-2 text-sm md:col-span-2"
                   />
                 </div>
                 <p className="inline-block text-xs text-gray-500 bg-primary-20 p-1 mt-2">
-                  * 작가 프로필의 사업자 정보(제조자, 사업자등록번호, 대표자명,
-                  A/S 책임자/전화번호, 이메일, 사업장 소재지, 통신판매업
-                  신고번호)를 불러와 편집할 수 있습니다.
+                  * 상품 수정 시에는 작가 프로필 정보가 자동으로 채워집니다.
+                  수정을 원하면 작가 프로필에서 변경해 주세요.
                 </p>
               </div>
             </div>
