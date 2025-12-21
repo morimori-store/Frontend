@@ -130,7 +130,7 @@ export default function ArtistInfo({ productUuid }: { productUuid?: string }) {
             type="button"
             className="flex justify-center items-center gap-2 mt-2 bg-white border border-primary rounded-sm px-3.5 py-2 text-primary font-semibold cursor-pointer transition hover:bg-primary-20 hover:text-white"
             onClick={() => {
-              if (artistId) router.push(`/forest/creator-${artistId}`);
+              if (artistId) router.push(`/forest/${artistId}`);
             }}
           >
             작가페이지

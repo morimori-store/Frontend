@@ -45,11 +45,11 @@ function sanitizeHtml(html: string) {
 
   return (
     <section>
-      <h3 className="font-semibold py-12">상품 정보</h3>
+      <h3 className="font-semibold text-center py-12">상품 정보</h3>
 
       {/* 에디터 내용 */}
       <div
-        className="product-content mx-auto w-full max-w-[800px] px-2 md:px-0"
+        className="product-content text-center mx-auto w-full max-w-[800px] px-2 md:px-0"
         dangerouslySetInnerHTML={{ __html: descriptionHtml }}
       />
       <style jsx>{`
