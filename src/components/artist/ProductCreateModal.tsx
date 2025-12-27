@@ -1910,8 +1910,10 @@ export default function ProductCreateModal({
                   />
                 </div>
                 <p className="inline-block text-xs text-gray-500 bg-primary-20 p-1 mt-2">
-                  * 상품 수정 시에는 작가 프로필 정보가 자동으로 채워집니다.
-                  수정을 원하면 작가 프로필에서 변경해 주세요.
+                  {mode === 'edit'
+                    ? '상품 수정 시에는 작가 프로필 정보가 자동으로 채워집니다. 수정을 원하면 작가 프로필에서 변경해 주세요.'
+                    : '작가 프로필의 사업자 정보(제조자, 사업자등록번호, 대표자명, A/S 책임자/전화번호, 이메일, 사업장 소재지, 통신판매업 신고번호)를 불러올 수 있습니다.'
+                  }
                 </p>
               </div>
             </div>
