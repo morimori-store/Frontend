@@ -639,24 +639,19 @@ export default function ProductCreateModal({
 
   // 모달 열릴 때 폼 초기화 및 사업자 정보 로드
   useEffect(() => {
-    if (!open) {
-      hydratedRef.current = false;
-      bizLoadedRef.current = false; // 모달 닫힐 때만 리셋
-      return;
-    }
-
+    if (!open) return;
     if (mode === 'create' && !hydratedRef.current) {
       hydratedRef.current = true;
       resetForm();
       return;
     }
+  }, [open, mode]);
 
-    if (mode === 'edit' && initialPayload && !hydratedRef.current) {
-      hydratedRef.current = true;
-      hydrateFromPayload(initialPayload, initialImages);
-      void loadBizInfoOnce();
-    }
-  }, [open, mode, initialPayload, initialImages, loadBizInfoOnce]);
+  useEffect(() => {
+    if (!open || mode !== 'edit' || !initialPayload || hydratedRef.current) return;
+    hydratedRef.current = true;
+    hydrateFromPayload(initialPayload, initialImages);
+  }, [open, mode, initialPayload, initialImages]);
 
   // 사업자 정보 불러오기 버튼(수동 호출)
   const handleBizInfoReload = async () => {
