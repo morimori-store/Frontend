@@ -45,7 +45,7 @@ function sanitizeHtml(html: string) {
 
   return (
     <section>
-      <h3 className="font-semibold text-center py-12">상품 정보</h3>
+      <h3 className="font-semibold text-left py-12">상품 정보</h3>
 
       {/* 에디터 내용 */}
       <div
@@ -55,12 +55,13 @@ function sanitizeHtml(html: string) {
       <style jsx>{`
         .product-content img {
           display: block;
-          max-width: 100%;
+          max-width: 500px;
+          width: 100%;
           height: auto;
-          margin: 16px auto;
+          margin: 16px auto; /* 이미지만 중앙 정렬 */
           border-radius: 8px;
         }
-        .product-content p { margin: 10px 0; line-height: 1.7; }
+        .product-content p { margin: 10px 0; line-height: 1.7; text-align: left; }
         .product-content h1, .product-content h2, .product-content h3 {
           margin-top: 20px; margin-bottom: 8px; font-weight: 700;
         }
