@@ -49,34 +49,29 @@ export default function ProductInfo({ product }: { product?: ProductDetail }) {
     return raw ? sanitizeHtml(raw) : '<p>상품 상세 설명이 없습니다.</p>';
   }, [product?.description]);
 
-  useEffect(() => {
-    const container = document.querySelector('.product-content');
-    if (!container) return;
-    const imgs = container.querySelectorAll('img');
-    imgs.forEach((img) => {
-      img.style.display = 'block';
-      img.style.maxWidth = '500px';
-      img.style.width = '100%';
-      img.style.height = 'auto';
-      img.style.margin = ' 16px auto';
-      img.style.objectFit = 'contain';
-    });
-  }, [descriptionHtml]);
-
   return (
     <section>
       <h3 className="font-semibold text-left py-12">상품 정보</h3>
 
       {/* 에디터 내용 */}
       <div
-        className="product-content rich-body text-center mx-auto w-full max-w-[800px] px-2 md:px-0"
+        className="product-content mx-auto w-full max-w-[800px] px-2 md:px-0"
         dangerouslySetInnerHTML={{ __html: descriptionHtml }}
       />
       <style jsx>{`
-        .product-content.rich-body p {
+        .product-content :global(img) {
+          display: block;
+          width: 500px;
+          max-width: 100%;
+          height: auto;
+          margin: 16px auto;
+          object-fit: contain;
+        }
+
+        .product-content p {
           margin: 10px 0;
           line-height: 1.7;
-          text-align: left;
+          text-align: center;
         }
         .product-content h1,
         .product-content h2,
