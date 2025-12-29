@@ -1,8 +1,7 @@
-
 'use client';
 
 import type { ProductDetail } from '@/types/product';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 
 type Spec = { label: string; value: string };
 
@@ -11,22 +10,29 @@ function asText(v?: unknown, fallback = '-') {
 }
 
 export default function ProductInfo({ product }: { product?: ProductDetail }) {
-
   // 스크립트 제거
-function sanitizeHtml(html: string) {
-  return html
-    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
-    .replace(/\son\w+="[^"]*"/gi, '')
-    .replace(/\son\w+='[^']*'/gi, '');
-}
-
+  function sanitizeHtml(html: string) {
+    return html
+      .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+      .replace(/\son\w+="[^"]*"/gi, '')
+      .replace(/\son\w+='[^']*'/gi, '');
+  }
   // 필수 정보
   const e = product?.essentialInfo;
   const SPECS: Spec[] = [
     { label: '품명 및 모델명', value: asText(e?.productModelName) },
-    { label: '법령 의한 인증, 허가 확인사항', value: e ? (e.certification ? '인증' : '해당 없음') : '-' },
+    {
+      label: '법령 의한 인증, 허가 확인사항',
+      value: e ? (e.certification ? '인증' : '해당 없음') : '-',
+    },
     { label: '제조국 또는 원산지', value: asText(e?.origin) },
-    { label: '제조자', value: asText(e?.businessName, asText(product?.brandName, asText(product?.artistName))) },
+    {
+      label: '제조자',
+      value: asText(
+        e?.businessName,
+        asText(product?.brandName, asText(product?.artistName)),
+      ),
+    },
     { label: '재질', value: asText(e?.material) },
     { label: '사이즈', value: asText(e?.size) },
     { label: 'A/S 책임자/전화번호', value: asText(e?.asManager) },
@@ -37,11 +43,25 @@ function sanitizeHtml(html: string) {
     { label: '통신판매업신고번호', value: asText(e?.telecomSalesNumber) },
   ];
 
-   // 에디터 HTML 
+  // 에디터 HTML
   const descriptionHtml = useMemo(() => {
     const raw = product?.description?.trim() ?? '';
     return raw ? sanitizeHtml(raw) : '<p>상품 상세 설명이 없습니다.</p>';
   }, [product?.description]);
+
+  useEffect(() => {
+    const container = document.querySelector('.product-content');
+    if (!container) return;
+    const imgs = container.querySelectorAll('img');
+    imgs.forEach((img) => {
+      img.style.display = 'block';
+      img.style.maxWidth = '500px';
+      img.style.width = '100%';
+      img.style.height = 'auto';
+      img.style.margin = ' 16px auto';
+      img.style.objectFit = 'contain';
+    });
+  }, [descriptionHtml]);
 
   return (
     <section>
@@ -49,28 +69,38 @@ function sanitizeHtml(html: string) {
 
       {/* 에디터 내용 */}
       <div
-        className="product-content text-center mx-auto w-full max-w-[800px] px-2 md:px-0"
+        className="product-content rich-body text-center mx-auto w-full max-w-[800px] px-2 md:px-0"
         dangerouslySetInnerHTML={{ __html: descriptionHtml }}
       />
       <style jsx>{`
-        .product-content img {
-          display: block;
-          max-width: 500px;
+        .product-content.rich-body p {
+          margin: 10px 0;
+          line-height: 1.7;
+          text-align: left;
+        }
+        .product-content h1,
+        .product-content h2,
+        .product-content h3 {
+          margin-top: 20px;
+          margin-bottom: 8px;
+          font-weight: 700;
+        }
+        .product-content ul,
+        .product-content ol {
+          padding-left: 20px;
+        }
+        .product-content table {
           width: 100%;
-          height: auto;
-          margin: 16px auto; /* 이미지만 중앙 정렬 */
-          border-radius: 8px;
+          border-collapse: collapse;
+          margin: 16px 0;
         }
-        .product-content p { margin: 10px 0; line-height: 1.7; text-align: left; }
-        .product-content h1, .product-content h2, .product-content h3 {
-          margin-top: 20px; margin-bottom: 8px; font-weight: 700;
+        .product-content table th,
+        .product-content table td {
+          border: 1px solid #e5e7eb;
+          padding: 8px;
         }
-        .product-content ul, .product-content ol { padding-left: 20px; }
-        .product-content table { width: 100%; border-collapse: collapse; margin: 16px 0; }
-        .product-content table th, .product-content table td {
-          border: 1px solid #e5e7eb; padding: 8px;
-        }
-        .product-content iframe, .product-content video {
+        .product-content iframe,
+        .product-content video {
           max-width: 100%;
         }
       `}</style>
