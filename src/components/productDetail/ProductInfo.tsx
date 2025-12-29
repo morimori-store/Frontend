@@ -68,7 +68,7 @@ export default function ProductInfo({ product }: { product?: ProductDetail }) {
           object-fit: contain;
         }
 
-        .product-content p {
+        .product-content :global(p) {
           margin: 10px 0;
           line-height: 1.7;
           text-align: center;
