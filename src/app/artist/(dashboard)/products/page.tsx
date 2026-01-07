@@ -18,6 +18,7 @@ import {
   fetchProductDetail,
   getProducts,
 } from '@/services/products';
+
 import SearchIcon from '@/assets/icon/search.svg';
 import ArtistDataTable, {
   ArtistTableColumn,
@@ -395,6 +396,7 @@ export default function ProductsPage() {
 
   // 행 클릭
   const handleRowClick = async (row: RowEx) => {
+
     const uuid = await resolveUuidForRow(row);
     if (!uuid) {
       alert('이 상품의 UUID를 찾을 수 없습니다.');

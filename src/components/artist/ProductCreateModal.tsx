@@ -44,9 +44,11 @@ const fileKey = (f: File) => `${f.name}-${f.size}-${f.lastModified}`;
 
 // 허용 타입만: MAIN | ADDITIONAL
 type AllowedType = Extract<UploadType, 'MAIN' | 'ADDITIONAL'>;
+
 type NormalizedType = Extract<UploadType, 'MAIN' | 'THUMBNAIL' | 'ADDITIONAL'>;
 const normalizeUploadType = (t?: UploadType | null): NormalizedType => {
   const normalized = typeof t === 'string' ? t.trim().toUpperCase() : '';
+
   if (normalized === 'MAIN') return 'MAIN';
   if (normalized === 'THUMBNAIL') return 'THUMBNAIL';
   if (normalized === 'ADDITIONAL') return 'ADDITIONAL';
@@ -216,6 +218,7 @@ function toProductCreateDto(
 
     sellingStartDate: payload.plannedSale ? payload.plannedSale.startAt : null,
     sellingEndDate: payload.plannedSale ? payload.plannedSale.endAt : null,
+
 
     tags: tagIds,
 
@@ -489,13 +492,14 @@ export default function ProductCreateModal({
     // edit 모드에서 catTree가 늦게 도착하면 카테고리 채워주기
     if (mode !== 'edit' || !initialPayload) return;
 
+
     if (!category1 && initialPayload.category1) {
       setCategory1(initialPayload.category1);
     }
     if (!category2 && initialPayload?.category2) {
       setCategory2(initialPayload.category2);
     }
-
+      
     if (!category1 && category2) {
       const findNode = (nodes: Category[], target: string): Category | null => {
         for (const node of nodes) {
@@ -1117,6 +1121,64 @@ export default function ProductCreateModal({
         prev
           .filter((_, i) => !removeIndexSet.has(i))
           .map((img) => ({ ...img })),
+      ),
+    );
+    setUploadingMap((prev) => {
+      const next = { ...prev };
+      removals.forEach(({ img, index }) => {
+        const key = img.s3Key ?? img.originalFileName ?? `server-${index}`;
+        delete next[key];
+      });
+      return next;
+    });
+  };
+
+  const removeServerImage = async (idx: number) => {
+    const target = uploadedImages[idx];
+    if (!target) return;
+
+    if (resolveUploadType(target) === 'THUMBNAIL') {
+      const hasMain = uploadedImages.some(
+        (img, index) =>
+          index !== idx && resolveUploadType(img) === 'MAIN' && isLinkedThumbnail(target, img),
+      );
+      if (hasMain) {
+        alert(
+          '썸네일 이미지는 단독으로 삭제할 수 없습니다. 대표 이미지를 삭제할 시 썸네일 이미지도 같이 삭제됩니다.',
+        );
+        return;
+      }
+    }
+    const linkedThumbnails =
+      resolveUploadType(target) === 'MAIN'
+        ? uploadedImages
+            .map((img, i) => ({ img, index: i }))
+            .filter(
+              ({ img, index }) =>
+                index !== idx && isLinkedThumbnail(img, target),
+            )
+        : [];
+
+    const removals = [{ img: target, index: idx }, ...linkedThumbnails];
+
+    for (const { img } of removals) {
+      if (!img.s3Key) continue;
+      try {
+        await deleteProductImage(img.s3Key);
+      } catch (e) {
+        alert(
+          e instanceof Error
+            ? e.message
+            : '이미지를 삭제하지 못했습니다.',
+        );
+        return;
+      }
+    }
+
+    const removeIndexSet = new Set(removals.map(({ index }) => index));
+    setUploadedImages((prev) =>
+      dedupeImages(
+        prev.filter((_, i) => !removeIndexSet.has(i)).map((img) => ({ ...img })),
       ),
     );
     setUploadingMap((prev) => {
