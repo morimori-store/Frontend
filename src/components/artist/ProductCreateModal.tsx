@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import X from '@/assets/icon/x.svg';
 import Paperclip from '@/assets/icon/paperclip2.svg';
 import NoticeEditor from '@/components/editor/NoticeEditor';
@@ -44,9 +44,11 @@ const fileKey = (f: File) => `${f.name}-${f.size}-${f.lastModified}`;
 
 // 허용 타입만: MAIN | ADDITIONAL
 type AllowedType = Extract<UploadType, 'MAIN' | 'ADDITIONAL'>;
-const normalizeUploadType = (t?: UploadType | null): UploadType => {
-  const normalized =
-    typeof t === 'string' ? t.trim().toUpperCase() : '';
+
+type NormalizedType = Extract<UploadType, 'MAIN' | 'THUMBNAIL' | 'ADDITIONAL'>;
+const normalizeUploadType = (t?: UploadType | null): NormalizedType => {
+  const normalized = typeof t === 'string' ? t.trim().toUpperCase() : '';
+
   if (normalized === 'MAIN') return 'MAIN';
   if (normalized === 'THUMBNAIL') return 'THUMBNAIL';
   if (normalized === 'ADDITIONAL') return 'ADDITIONAL';
@@ -214,12 +216,9 @@ function toProductCreateDto(
     isPlanned: !!payload.plannedSale,
     isRestock: !!opts.isRestock,
 
-    sellingStartDate: payload.plannedSale
-      ? payload.plannedSale.startAt
-      : null,
-    sellingEndDate: payload.plannedSale
-      ? payload.plannedSale.endAt
-      : null,
+    sellingStartDate: payload.plannedSale ? payload.plannedSale.startAt : null,
+    sellingEndDate: payload.plannedSale ? payload.plannedSale.endAt : null,
+
 
     tags: tagIds,
 
@@ -302,6 +301,8 @@ export default function ProductCreateModal({
   const [modelName, setModelName] = useState('');
   const [category1, setCategory1] = useState('');
   const [category2, setCategory2] = useState('');
+  const hydratedRef = useRef(false);
+  const bizLoadedRef = useRef(false);
 
   // 카테고리/태그
   const [catTree, setCatTree] = useState<Category[]>([]);
@@ -376,10 +377,59 @@ export default function ProductCreateModal({
 
   // 업로드 진행 상태
   const [uploadingMap, setUploadingMap] = useState<
-    Record<string, 'idle' | 'uploading' | 'done' | 'error'>
+    Record<string, 'idle' | 'uploading' | 'done' | 'error' | 'pending'>
   >({});
   // 파일 → s3Key 매핑
   const [fileS3Map, setFileS3Map] = useState<Record<string, string | null>>({});
+
+  // 초기화
+  const resetForm = () => {
+    setBrand(initialBrand ?? '모리모리');
+    setTitle('');
+    setModelName('');
+    setCategory1('');
+    setCategory2('');
+    setSize('');
+    setMaterial('');
+    setOrigin('');
+    setPrice(0);
+    setDiscountRate(0);
+    setStock(0);
+    setMinQty(1);
+    setMaxQty(0);
+    setBundleShipping(true);
+    setShippingType('FREE');
+    setShippingFee(0);
+    setFreeThreshold(0);
+    setJejuExtraFee(0);
+    setIsPlanned(false);
+    setSaleStart('');
+    setSaleEnd('');
+    setTags([]);
+    setIsRestock(false);
+    setUseOptions(false);
+    setOptions([]);
+    setAddons([]);
+    setLawCertRequired(false);
+    setBizInfo({
+      businessName: initialBizInfo?.businessName ?? '',
+      businessNumber: initialBizInfo?.businessNumber ?? '',
+      ownerName: initialBizInfo?.ownerName ?? '',
+      asManager: initialBizInfo?.asManager ?? '',
+      email: initialBizInfo?.email ?? '',
+      businessAddress: initialBizInfo?.businessAddress ?? '',
+      telecomSalesNumber: initialBizInfo?.telecomSalesNumber ?? '',
+    });
+    setEditorValue('');
+
+    setFiles([]);
+    setPreviews([]);
+    setUploadedImages([]);
+    setThumbnailFlags([]);
+    setUploadingMap({});
+    setFileS3Map({});
+    setFileTypes([]);
+  };
 
   // ESC로 닫기
   useEffect(() => {
@@ -432,67 +482,42 @@ export default function ProductCreateModal({
     })();
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
-
-    if (mode === 'create') {
-      // 초기화
-      setBrand(initialBrand ?? '모리모리');
-      setTitle('');
-      setModelName('');
-      setCategory1('');
-      setCategory2('');
-      setSize('');
-      setMaterial('');
-      setOrigin('');
-      setPrice(0);
-      setDiscountRate(0);
-      setStock(0);
-      setMinQty(1);
-      setMaxQty(0);
-      setBundleShipping(true);
-      setShippingType('FREE');
-      setShippingFee(0);
-      setFreeThreshold(0);
-      setJejuExtraFee(0);
-      setIsPlanned(false);
-      setSaleStart('');
-      setSaleEnd('');
-      setTags([]);
-      setIsRestock(false);
-      setUseOptions(false);
-      setOptions([]);
-      setAddons([]);
-      setLawCertRequired(false);
-      setBizInfo({
-        businessName: initialBizInfo?.businessName ?? '',
-        businessNumber: initialBizInfo?.businessNumber ?? '',
-        ownerName: initialBizInfo?.ownerName ?? '',
-        asManager: initialBizInfo?.asManager ?? '',
-        email: initialBizInfo?.email ?? '',
-        businessAddress: initialBizInfo?.businessAddress ?? '',
-        telecomSalesNumber: initialBizInfo?.telecomSalesNumber ?? '',
-      });
-      setEditorValue('');
-
-      setFiles([]);
-      setPreviews([]);
-      setUploadedImages([]);
-      setThumbnailFlags([]);
-      setUploadingMap({});
-      setFileS3Map({});
-      setFileTypes([]);
-    }
-
-    else if (mode === 'edit' && initialPayload) {
-      hydrateFromPayload(initialPayload, initialImages);
-    }
-  }, [open]);
-
   const subOptions = useMemo(() => {
     const root = catTree.find((c) => String(c.id) === category1);
     return root?.subCategories ?? [];
   }, [catTree, category1]);
+
+  // 카테고리 데이터가 로드된 후, category1이 비어 있고 category2만 있는 경우 parent를 역추적해 채워준다.
+  useEffect(() => {
+    // edit 모드에서 catTree가 늦게 도착하면 카테고리 채워주기
+    if (mode !== 'edit' || !initialPayload) return;
+
+
+    if (!category1 && initialPayload.category1) {
+      setCategory1(initialPayload.category1);
+    }
+    if (!category2 && initialPayload?.category2) {
+      setCategory2(initialPayload.category2);
+    }
+      
+    if (!category1 && category2) {
+      const findNode = (nodes: Category[], target: string): Category | null => {
+        for (const node of nodes) {
+          if (String(node.id) === target) return node;
+          if (node.subCategories?.length) {
+            const found = findNode(node.subCategories, target);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+
+      const node = findNode(catTree, category2);
+      if (node?.parentId != null) {
+        setCategory1(String(node.parentId));
+      }
+    }
+  }, [catTree, category1, category2, mode, initialPayload]);
 
   // 태그명 키를 정규화해서 저장
   const tagDict = useMemo(() => {
@@ -559,7 +584,7 @@ export default function ProductCreateModal({
     setSaleStart(planned ? (payload.plannedSale?.startAt ?? '') : '');
     setSaleEnd(planned ? (payload.plannedSale?.endAt ?? '') : '');
 
-    setIsRestock(false);
+    setIsRestock(!!payload.isRestock);
 
     setTags(payload.tags ?? []);
     const usingOptions =
@@ -578,6 +603,8 @@ export default function ProductCreateModal({
       telecomSalesNumber: prev.telecomSalesNumber ?? '',
     }));
 
+    setLawCertRequired(!!payload.certification);
+
     setEditorValue(payload.description ?? '');
     setFiles([]);
     setFileTypes([]);
@@ -594,6 +621,58 @@ export default function ProductCreateModal({
       ),
     );
   }
+
+  // 사업자 정보 불러오기 (자동 호출)
+  const loadBizInfoOnce = useCallback(async () => {
+    if (bizLoadedRef.current) return;
+    bizLoadedRef.current = true;
+    setBizLoading(true);
+    const data = await fetchArtistBusinessInfo();
+    setBizLoading(false);
+    if (!data) return;
+    setBizInfo({
+      businessName: data.businessName ?? '',
+      businessNumber: data.businessNumber ?? '',
+      ownerName: data.ownerName ?? '',
+      asManager: data.asManager ?? '',
+      email: data.email ?? '',
+      businessAddress: data.businessAddress ?? '',
+      telecomSalesNumber: data.telecomSalesNumber ?? '',
+    });
+  }, []);
+
+  // 모달 열릴 때 폼 초기화 및 사업자 정보 로드
+  useEffect(() => {
+    if (!open) return;
+    if (mode === 'create' && !hydratedRef.current) {
+      hydratedRef.current = true;
+      resetForm();
+      return;
+    }
+  }, [open, mode]);
+
+  useEffect(() => {
+    if (!open || mode !== 'edit' || !initialPayload || hydratedRef.current) return;
+    hydratedRef.current = true;
+    hydrateFromPayload(initialPayload, initialImages);
+  }, [open, mode, initialPayload, initialImages]);
+
+  // 사업자 정보 불러오기 버튼(수동 호출)
+  const handleBizInfoReload = async () => {
+    setBizLoading(true);
+    const data = await fetchArtistBusinessInfo();
+    setBizLoading(false);
+    if (!data) return;
+    setBizInfo({
+      businessName: data.businessName ?? '',
+      businessNumber: data.businessNumber ?? '',
+      ownerName: data.ownerName ?? '',
+      asManager: data.asManager ?? '',
+      email: data.email ?? '',
+      businessAddress: data.businessAddress ?? '',
+      telecomSalesNumber: data.telecomSalesNumber ?? '',
+    });
+  };
 
   // === 파일 선택 (즉시 업로드 X) ===
   const handleSelectFiles = (incoming: File[]) => {
@@ -661,7 +740,9 @@ export default function ProductCreateModal({
       (type, idx) => type === 'MAIN' && files[idx],
     );
     if (serverMainExists && pendingMainExists) {
-      alert('대표 이미지는 1개만 지정할 수 있습니다. 기존 대표 이미지를 삭제한 뒤 다시 시도해주세요.');
+      alert(
+        '대표 이미지는 1개만 지정할 수 있습니다. 기존 대표 이미지를 삭제한 뒤 다시 시도해주세요.',
+      );
       setUploadingMap((prev) => {
         const next = { ...prev };
         targets.forEach(({ key }) => (next[key] = 'pending'));
@@ -672,7 +753,7 @@ export default function ProductCreateModal({
 
     try {
       const uploaded = await uploadProductImages(pendingFiles, pendingTypes);
-      const merged = uploaded.map((item, i) => {
+      const merged = uploaded.map((item, i): UploadedImageInfo => {
         const fallback = pendingTypes[i];
         const resolved = normalizeUploadType(
           item.type ?? item.fileType ?? fallback,
@@ -681,7 +762,7 @@ export default function ProductCreateModal({
           ...item,
           type: resolved,
           fileType: item.fileType ?? resolved,
-        };
+        } as UploadedImageInfo;
       });
       setUploadedImages((prev) => dedupeImages([...prev, ...merged]));
 
@@ -689,7 +770,9 @@ export default function ProductCreateModal({
         .map((_, idx) => idx)
         .filter((idx) => !targets.some((t) => t.index === idx));
       setFiles((prev) => prev.filter((_, idx) => keepIndexes.includes(idx)));
-      setFileTypes((prev) => prev.filter((_, idx) => keepIndexes.includes(idx)));
+      setFileTypes((prev) =>
+        prev.filter((_, idx) => keepIndexes.includes(idx)),
+      );
       setPreviews((prev) => prev.filter((_, idx) => keepIndexes.includes(idx)));
       setThumbnailFlags((prev) =>
         prev.filter((_, idx) => keepIndexes.includes(idx)),
@@ -709,8 +792,7 @@ export default function ProductCreateModal({
         return next;
       });
     } catch (e) {
-      const msg =
-        e instanceof Error ? e.message : '이미지 업로드 실패';
+      const msg = e instanceof Error ? e.message : '이미지 업로드 실패';
       alert(msg);
       setUploadingMap((prev) => {
         const next = { ...prev };
@@ -991,6 +1073,64 @@ export default function ProductCreateModal({
         dedupeImages(prev.filter((u) => u.originalFileName !== target.name)),
       );
     }
+  };
+
+  const removeServerImage = async (idx: number) => {
+    const target = uploadedImages[idx];
+    if (!target) return;
+
+    if (resolveUploadType(target) === 'THUMBNAIL') {
+      const hasMain = uploadedImages.some(
+        (img, index) =>
+          index !== idx &&
+          resolveUploadType(img) === 'MAIN' &&
+          isLinkedThumbnail(target, img),
+      );
+      if (hasMain) {
+        alert(
+          '썸네일 이미지는 단독으로 삭제할 수 없습니다. 대표 이미지를 삭제할 시 썸네일 이미지도 같이 삭제됩니다.',
+        );
+        return;
+      }
+    }
+    const linkedThumbnails =
+      resolveUploadType(target) === 'MAIN'
+        ? uploadedImages
+            .map((img, i) => ({ img, index: i }))
+            .filter(
+              ({ img, index }) =>
+                index !== idx && isLinkedThumbnail(img, target),
+            )
+        : [];
+
+    const removals = [{ img: target, index: idx }, ...linkedThumbnails];
+
+    for (const { img } of removals) {
+      if (!img.s3Key) continue;
+      try {
+        await deleteProductImage(img.s3Key);
+      } catch (e) {
+        alert(e instanceof Error ? e.message : '이미지를 삭제하지 못했습니다.');
+        return;
+      }
+    }
+
+    const removeIndexSet = new Set(removals.map(({ index }) => index));
+    setUploadedImages((prev) =>
+      dedupeImages(
+        prev
+          .filter((_, i) => !removeIndexSet.has(i))
+          .map((img) => ({ ...img })),
+      ),
+    );
+    setUploadingMap((prev) => {
+      const next = { ...prev };
+      removals.forEach(({ img, index }) => {
+        const key = img.s3Key ?? img.originalFileName ?? `server-${index}`;
+        delete next[key];
+      });
+      return next;
+    });
   };
 
   const removeServerImage = async (idx: number) => {
@@ -1742,76 +1882,67 @@ export default function ProductCreateModal({
               <div className="md:col-span-3">
                 <div className="flex items-center gap-3 mb-2">
                   <span className="w-40 text-sm">사업자 정보</span>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      setBizLoading(true);
-                      const data = await fetchArtistBusinessInfo();
-                      setBizLoading(false);
-                      if (!data) return;
-                      setBizInfo((prev) => ({
-                        businessName: data.businessName ?? prev.businessName,
-                        businessNumber:
-                          data.businessNumber ?? prev.businessNumber,
-                        ownerName: data.ownerName ?? prev.ownerName,
-                        asManager: data.asManager ?? prev.asManager,
-                        email: data.email ?? prev.email,
-                        businessAddress:
-                          data.businessAddress ?? prev.businessAddress,
-                        telecomSalesNumber:
-                          data.telecomSalesNumber ?? prev.telecomSalesNumber,
-                      }));
-                    }}
-                    className="shrink-0 text-sm border rounded px-3 py-2 hover:bg-black/5 disabled:opacity-60"
-                    disabled={bizLoading}
-                  >
-                    {bizLoading ? '불러오는 중…' : '불러오기'}
-                  </button>
+                  {mode === 'create' && (
+                    <button
+                      type="button"
+                      onClick={handleBizInfoReload}
+                      className="shrink-0 text-sm border rounded px-3 py-2 hover:bg-black/5 disabled:opacity-60"
+                      disabled={bizLoading}
+                    >
+                      {bizLoading ? '불러오는 중…' : '불러오기'}
+                    </button>
+                  )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-gray-600">
                   <input
+                    disabled
                     value={bizInfo.businessName}
                     onChange={(e) =>
                       setBizInfo({ ...bizInfo, businessName: e.target.value })
                     }
                     placeholder="제조자"
-                    className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
+                    className="rounded bg-gray-50 border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                   />
                   <input
+                    disabled
                     value={bizInfo.businessNumber}
                     onChange={(e) =>
                       setBizInfo({ ...bizInfo, businessNumber: e.target.value })
                     }
                     placeholder="사업자 등록 번호 (예: 123-45-67890)"
-                    className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
+                    className="rounded bg-gray-50 border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                   />
                   <input
+                    disabled
                     value={bizInfo.ownerName}
                     onChange={(e) =>
                       setBizInfo({ ...bizInfo, ownerName: e.target.value })
                     }
                     placeholder="대표자명"
-                    className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
+                    className="rounded bg-gray-50 border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                   />
                   <input
+                    disabled
                     value={bizInfo.asManager}
                     onChange={(e) =>
                       setBizInfo({ ...bizInfo, asManager: e.target.value })
                     }
                     placeholder="A/S 책임자 / 전화번호"
-                    className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
+                    className="rounded bg-gray-50 border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                   />
                   <input
+                    disabled
                     type="email"
                     value={bizInfo.email}
                     onChange={(e) =>
                       setBizInfo({ ...bizInfo, email: e.target.value })
                     }
                     placeholder="전자우편주소"
-                    className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
+                    className="rounded bg-gray-50  border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                   />
                   <input
+                    disabled
                     value={bizInfo.businessAddress}
                     onChange={(e) =>
                       setBizInfo({
@@ -1820,9 +1951,10 @@ export default function ProductCreateModal({
                       })
                     }
                     placeholder="사업장 소재지"
-                    className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
+                    className="rounded bg-gray-50 border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                   />
                   <input
+                    disabled
                     value={bizInfo.telecomSalesNumber}
                     onChange={(e) =>
                       setBizInfo({
@@ -1831,13 +1963,14 @@ export default function ProductCreateModal({
                       })
                     }
                     placeholder="통신 판매업 신고 번호"
-                    className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm md:col-span-2"
+                    className="rounded bg-gray-50 border border-[var(--color-gray-200)] px-3 py-2 text-sm md:col-span-2"
                   />
                 </div>
                 <p className="inline-block text-xs text-gray-500 bg-primary-20 p-1 mt-2">
-                  * 작가 프로필의 사업자 정보(제조자, 사업자등록번호, 대표자명,
-                  A/S 책임자/전화번호, 이메일, 사업장 소재지, 통신판매업
-                  신고번호)를 불러와 편집할 수 있습니다.
+                  {mode === 'edit'
+                    ? '상품 수정 시에는 작가 프로필 정보가 자동으로 채워집니다. 수정을 원하면 작가 프로필에서 변경해 주세요.'
+                    : '작가 프로필의 사업자 정보(제조자, 사업자등록번호, 대표자명, A/S 책임자/전화번호, 이메일, 사업장 소재지, 통신판매업 신고번호)를 불러올 수 있습니다.'
+                  }
                 </p>
               </div>
             </div>
@@ -1985,38 +2118,43 @@ export default function ProductCreateModal({
                 {uploadedImages.map((img, idx) => {
                   const resolvedType = asAllowed(resolveUploadType(img));
                   return (
-                  <div
-                    key={img.s3Key ?? img.originalFileName ?? `server-${idx}`}
-                    className="flex items-center gap-3 text-sm"
-                  >
-                    <div className="w-10 h-10 rounded overflow-hidden bg-gray-100 flex items-center justify-center shrink-0">
-                      <img
-                        src={img.url}
-                        alt={img.originalFileName ?? `이미지 ${idx + 1}`}
-                        className="w-full h-full object-cover"
-                        draggable={false}
-                      />
-                    </div>
-                    <span className="flex-1 truncate">
-                      {img.originalFileName || img.s3Key || `등록된 이미지 ${idx + 1}`}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <span className="px-2 py-1 rounded text-xs bg-gray-100 text-gray-700 border border-[var(--color-gray-200)]">
-                        {resolvedType === 'MAIN' ? '대표 이미지' : '추가이미지'}
-                      </span>
-                      <span className="px-2 py-1 rounded text-xs bg-green-100 text-green-800">
-                        등록됨
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeServerImage(idx)}
-                      className="ml-2 rounded border px-2 py-1 hover:bg-black/5"
+                    <div
+                      key={img.s3Key ?? img.originalFileName ?? `server-${idx}`}
+                      className="flex items-center gap-3 text-sm"
                     >
-                      삭제
-                    </button>
-                  </div>
-                )})}
+                      <div className="w-10 h-10 rounded overflow-hidden bg-gray-100 flex items-center justify-center shrink-0">
+                        <img
+                          src={img.url}
+                          alt={img.originalFileName ?? `이미지 ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                          draggable={false}
+                        />
+                      </div>
+                      <span className="flex-1 truncate">
+                        {img.originalFileName ||
+                          img.s3Key ||
+                          `등록된 이미지 ${idx + 1}`}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-1 rounded text-xs bg-gray-100 text-gray-700 border border-[var(--color-gray-200)]">
+                          {resolvedType === 'MAIN'
+                            ? '대표 이미지'
+                            : '추가이미지'}
+                        </span>
+                        <span className="px-2 py-1 rounded text-xs bg-green-100 text-green-800">
+                          등록됨
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeServerImage(idx)}
+                        className="ml-2 rounded border px-2 py-1 hover:bg-black/5"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

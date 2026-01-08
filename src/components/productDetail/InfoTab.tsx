@@ -12,7 +12,7 @@ const TABS = ['상품 정보', '작가 정보', '상품 Q&A', '리뷰'];
 type Props = {
   // 리뷰/통계 API용 숫자 ID (삭제 예정) - 임시
   productId?: number;
-  // 상품 상세 데이터 
+  // 상품 상세 데이터
   product?: ProductDetail;
 };
 
@@ -20,7 +20,7 @@ export default function InfoTab({ productId, product }: Props) {
   const [activeTab, setActiveTab] = useState('상품 정보');
 
   return (
-    <div className="mt-10 px-6">
+    <div className="my-12 px-6">
       {/* 탭 버튼 */}
       <div className="flex max-w-[1200px] mx-auto border border-tertiary">
         {TABS.map((item) => (
@@ -37,10 +37,14 @@ export default function InfoTab({ productId, product }: Props) {
       </div>
 
       {/* 탭 컨텐츠 */}
-      <div className="max-w-[1200px] mx-auto">
+      <div className="max-w-[1200px] gap-5 mx-auto">
         {activeTab === '상품 정보' && <ProductInfo product={product} />}
-        {activeTab === '작가 정보' && <ArtistInfo productUuid={product?.productUuid} />}
-        {activeTab === '상품 Q&A' && <QuestionInfo productUuid={product?.productUuid} />}
+        {activeTab === '작가 정보' && (
+          <ArtistInfo productUuid={product?.productUuid} />
+        )}
+        {activeTab === '상품 Q&A' && (
+          <QuestionInfo productUuid={product?.productUuid} />
+        )}
         {activeTab === '리뷰' && <ReviewInfo productId={productId} />}
       </div>
     </div>

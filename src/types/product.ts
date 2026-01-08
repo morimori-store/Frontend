@@ -77,6 +77,17 @@ export type ProductDetail = {
   tags: TagResponse[];
   sellingStartDate?: string | null;
   sellingEndDate?: string | null;
+  categoryId?: number | null;
+  parentCategoryId?: number | null;
+  category?: {
+    id?: number | null;
+    parentId?: number | null;
+  } | null;
+  subCategoryId?: number | null;
+  parentCategory?: {
+    id?: number | null;
+  } | null;
+
 };
 
 
@@ -255,6 +266,7 @@ export type ProductCreatePayload = {
   }; // 서버 전송 X
   description: string;
   attachments?: File[]; // 서버 전송 X
+  isRestock?: boolean;
 };
 
 // 태그

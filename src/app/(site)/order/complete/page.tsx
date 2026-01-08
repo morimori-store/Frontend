@@ -83,7 +83,7 @@ const OrderCompletePage = async ({ searchParams }: OrderCompletePageProps) => {
           <div className="flex items-center px-8 pl-[170px]">
             <div className="flex items-center gap-6 w-1/2">
               <div className="w-36"></div>
-              <span className="text-xl font-medium text-black">상품 정보</span>
+              <span className="text-xl font-medium  text-black">상품 정보</span>
             </div>
             <div className="w-1/4 text-center">
               <span className="text-xl font-medium text-black">주문 금액</span>

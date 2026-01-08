@@ -1,8 +1,7 @@
-
 'use client';
 
 import type { ProductDetail } from '@/types/product';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 
 type Spec = { label: string; value: string };
 
@@ -11,22 +10,29 @@ function asText(v?: unknown, fallback = '-') {
 }
 
 export default function ProductInfo({ product }: { product?: ProductDetail }) {
-
   // 스크립트 제거
-function sanitizeHtml(html: string) {
-  return html
-    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
-    .replace(/\son\w+="[^"]*"/gi, '')
-    .replace(/\son\w+='[^']*'/gi, '');
-}
-
+  function sanitizeHtml(html: string) {
+    return html
+      .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+      .replace(/\son\w+="[^"]*"/gi, '')
+      .replace(/\son\w+='[^']*'/gi, '');
+  }
   // 필수 정보
   const e = product?.essentialInfo;
   const SPECS: Spec[] = [
     { label: '품명 및 모델명', value: asText(e?.productModelName) },
-    { label: '법령 의한 인증, 허가 확인사항', value: e ? (e.certification ? '인증' : '해당 없음') : '-' },
+    {
+      label: '법령 의한 인증, 허가 확인사항',
+      value: e ? (e.certification ? '인증' : '해당 없음') : '-',
+    },
     { label: '제조국 또는 원산지', value: asText(e?.origin) },
-    { label: '제조자', value: asText(e?.businessName, asText(product?.brandName, asText(product?.artistName))) },
+    {
+      label: '제조자',
+      value: asText(
+        e?.businessName,
+        asText(product?.brandName, asText(product?.artistName)),
+      ),
+    },
     { label: '재질', value: asText(e?.material) },
     { label: '사이즈', value: asText(e?.size) },
     { label: 'A/S 책임자/전화번호', value: asText(e?.asManager) },
@@ -37,7 +43,7 @@ function sanitizeHtml(html: string) {
     { label: '통신판매업신고번호', value: asText(e?.telecomSalesNumber) },
   ];
 
-   // 에디터 HTML 
+  // 에디터 HTML
   const descriptionHtml = useMemo(() => {
     const raw = product?.description?.trim() ?? '';
     return raw ? sanitizeHtml(raw) : '<p>상품 상세 설명이 없습니다.</p>';
@@ -45,7 +51,7 @@ function sanitizeHtml(html: string) {
 
   return (
     <section>
-      <h3 className="font-semibold py-12">상품 정보</h3>
+      <h3 className="font-semibold text-left py-12">상품 정보</h3>
 
       {/* 에디터 내용 */}
       <div
@@ -53,23 +59,43 @@ function sanitizeHtml(html: string) {
         dangerouslySetInnerHTML={{ __html: descriptionHtml }}
       />
       <style jsx>{`
-        .product-content img {
+        .product-content :global(img) {
           display: block;
+          width: 500px;
           max-width: 100%;
           height: auto;
           margin: 16px auto;
-          border-radius: 8px;
+          object-fit: contain;
         }
-        .product-content p { margin: 10px 0; line-height: 1.7; }
-        .product-content h1, .product-content h2, .product-content h3 {
-          margin-top: 20px; margin-bottom: 8px; font-weight: 700;
+
+        .product-content :global(p) {
+          margin: 10px 0;
+          line-height: 1.7;
+          text-align: center;
         }
-        .product-content ul, .product-content ol { padding-left: 20px; }
-        .product-content table { width: 100%; border-collapse: collapse; margin: 16px 0; }
-        .product-content table th, .product-content table td {
-          border: 1px solid #e5e7eb; padding: 8px;
+        .product-content h1,
+        .product-content h2,
+        .product-content h3 {
+          margin-top: 20px;
+          margin-bottom: 8px;
+          font-weight: 700;
         }
-        .product-content iframe, .product-content video {
+        .product-content ul,
+        .product-content ol {
+          padding-left: 20px;
+        }
+        .product-content table {
+          width: 100%;
+          border-collapse: collapse;
+          margin: 16px 0;
+        }
+        .product-content table th,
+        .product-content table td {
+          border: 1px solid #e5e7eb;
+          padding: 8px;
+        }
+        .product-content iframe,
+        .product-content video {
           max-width: 100%;
         }
       `}</style>
